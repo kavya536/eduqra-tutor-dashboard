@@ -1,0 +1,104 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Outfit:wght@400;500;600;700;800;900&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Outfit", ui-sans-serif, system-ui, sans-serif;
+  
+  --color-primary: #0047ab;
+  --color-primary-light: #2c68c1;
+  --color-primary-dark: #003682;
+  --color-secondary: #4caf50;
+  --color-secondary-light: #66bb6a;
+  --color-tertiary: #26a69a;
+  --color-background: #f8fafc;
+  --color-surface: #ffffff;
+  --color-surface-variant: #f1f5f9;
+  --color-on-surface: #0f172a;
+  --color-on-surface-variant: #64748b;
+  
+  --radius-4xl: 2rem;
+  --radius-5xl: 3rem;
+  --radius-6xl: 4rem;
+}
+
+@layer base {
+  body {
+    @apply bg-background text-on-surface font-sans antialiased selection:bg-primary/20 selection:text-primary;
+    font-size: 14px;
+    background-image: 
+      radial-gradient(at 0% 0%, rgba(0, 108, 73, 0.05) 0px, transparent 50%),
+      radial-gradient(at 100% 0%, rgba(14, 165, 233, 0.04) 0px, transparent 50%);
+    background-attachment: fixed;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-sans tracking-tight font-bold text-slate-800;
+  }
+  
+  /* Fluid Typography */
+  .text-fluid-5xl {
+    font-size: clamp(2.5rem, 8vw, 4.5rem);
+    line-height: 1;
+  }
+  
+  .text-fluid-4xl {
+    font-size: clamp(2rem, 6vw, 3.5rem);
+    line-height: 1.1;
+  }
+  
+  .text-fluid-3xl {
+    font-size: clamp(1.5rem, 4vw, 2.5rem);
+    line-height: 1.2;
+  }
+}
+
+@layer components {
+  .atelier-card-shadow {
+    box-shadow: 
+      0 0 0 1px rgba(15, 23, 42, 0.03),
+      0 20px 25px -5px rgba(15, 23, 42, 0.04),
+      0 8px 10px -6px rgba(15, 23, 42, 0.04);
+  }
+  
+  .glass-card {
+    @apply bg-white/70 backdrop-blur-3xl border border-white/30 shadow-2xl;
+  }
+  
+  .nav-item-active {
+    @apply text-primary font-bold border-r-4 border-primary bg-primary/5;
+  }
+  
+  .nav-item-inactive {
+    @apply text-slate-500 font-bold hover:text-primary hover:bg-slate-50 transition-all;
+  }
+
+  .btn-primary {
+    @apply bg-primary text-white font-semibold px-6 py-3 rounded-xl hover:bg-primary-light hover:-translate-y-1 hover:shadow-xl hover:shadow-primary/20 transition-all active:scale-95 flex items-center justify-center gap-2;
+  }
+
+  .input-field {
+    @apply w-full pl-14 pr-6 py-4 rounded-2xl bg-slate-50 border-none focus:ring-2 ring-primary/50 outline-none font-bold text-base shadow-inner transition-all;
+  }
+
+  .label-caps {
+    @apply text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant;
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-slate-200 rounded-full border-4 border-transparent bg-clip-content;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-primary/50;
+}

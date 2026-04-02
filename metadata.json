@@ -1,0 +1,9 @@
+{
+  "name": "Eduqra Tutor Dashboard",
+  "description": "A premium, high-performance tutor management platform with real-time bookings, chat, and financial management.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ]
+}
