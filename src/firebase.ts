@@ -1,5 +1,8 @@
 import { initializeApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
+import { getAuth } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
+import { getStorage } from "firebase/storage";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDwXgG11d-FJc1IkRLs9_H7tR6NBIKXDbw",
@@ -13,5 +16,20 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const analytics = typeof window !== "undefined" ? getAnalytics(app) : null;
+const auth = getAuth(app);
+const db = getFirestore(app);
+const storage = getStorage(app);
 
-export { app, analytics };
+// Connectivity Test
+if (typeof window !== "undefined") {
+  console.log("🔥 Firebase Initializing for project:", firebaseConfig.projectId);
+  try {
+    const authStatus = auth ? "Auth OK" : "Auth Failed";
+    const dbStatus = db ? "Firestore OK" : "Firestore Failed";
+    console.log(`✅ Eduqra Database Handshake: ${authStatus}, ${dbStatus}`);
+  } catch (err) {
+    console.error("❌ Firebase Connection Error:", err);
+  }
+}
+
+export { app, analytics, auth, db, storage };

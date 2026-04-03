@@ -52,11 +52,11 @@ export function Chat({ contacts, activeContactId, onContactSelect, onSendMessage
 
   return (
     <div className="h-[calc(100vh-80px)] md:h-[calc(100vh-100px)] flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-500 -mt-2 md:-mt-4">
-      <div className="flex items-center justify-between mb-2 md:mb-3 shrink-0">
-        <h2 className="text-2xl font-black text-on-surface tracking-tight">Messages</h2>
-        <div className="flex items-center gap-2 bg-primary/10 px-4 py-2 rounded-full">
-          <span className="w-2 h-2 bg-primary rounded-full animate-pulse"></span>
-          <span className="text-[10px] font-black text-primary uppercase tracking-widest">Live Support</span>
+      <div className="flex items-center justify-between mb-2 shrink-0">
+        <h1 className="page-title">Messages</h1>
+        <div className="flex items-center gap-1.5 bg-primary/10 px-3 py-1.5 rounded-full">
+          <span className="w-1.5 h-1.5 bg-primary rounded-full animate-pulse"></span>
+          <span className="status-label text-primary">Live Support</span>
         </div>
       </div>
 
@@ -66,9 +66,9 @@ export function Chat({ contacts, activeContactId, onContactSelect, onSendMessage
           "w-full md:w-[320px] lg:w-[400px] border-r border-surface-variant flex flex-col bg-slate-50/30 transition-all duration-300 shrink-0",
           showMobileChat ? "hidden md:flex" : "flex"
         )}>
-          <div className="p-4 md:p-6 border-b border-surface-variant flex items-center justify-between bg-white">
-            <h4 className="font-black text-sm uppercase tracking-widest text-on-surface">Students</h4>
-            <span className="bg-slate-100 text-slate-500 text-[10px] font-black px-2 py-1 rounded-md">{contacts.length}</span>
+          <div className="p-3 md:p-4 border-b border-surface-variant flex items-center justify-between bg-white">
+            <h4 className="label-caps !text-[11px] text-on-surface">Students</h4>
+            <span className="bg-slate-100 text-slate-500 secondary-text font-black px-1.5 py-0.5 rounded-md !text-[11px]">{contacts.length}</span>
           </div>
           <div className="overflow-y-auto flex-1 p-2 md:p-3 space-y-1 md:space-y-2">
             {contacts.map((contact, i) => (
@@ -79,7 +79,7 @@ export function Chat({ contacts, activeContactId, onContactSelect, onSendMessage
                 transition={{ delay: i * 0.05 }}
                 onClick={() => { onContactSelect(contact.id); setShowMobileChat(true); }}
                 className={cn(
-                  "w-full flex items-center gap-3 md:gap-4 p-3 md:p-4 rounded-xl md:rounded-2xl transition-all text-left group relative",
+                  "w-full flex items-center gap-2 md:gap-3 p-2 md:p-3 rounded-lg md:rounded-xl transition-all text-left group relative",
                   activeContactId === contact.id 
                     ? "bg-primary/10 shadow-sm" 
                     : "hover:bg-slate-100/80"
@@ -102,7 +102,7 @@ export function Chat({ contacts, activeContactId, onContactSelect, onSendMessage
                 <div className="flex-1 min-w-0">
                   <div className="flex justify-between items-center mb-0.5 md:mb-1">
                     <p className="font-black text-xs md:text-sm truncate text-on-surface">{contact.id}</p>
-                    <span className="text-[8px] md:text-[9px] font-bold text-on-surface-variant opacity-60">
+                    <span className="status-label opacity-60">
                       {contact.messages[contact.messages.length - 1]?.time || ""}
                     </span>
                   </div>
@@ -135,22 +135,22 @@ export function Chat({ contacts, activeContactId, onContactSelect, onSendMessage
               {/* Subtle Modern Dot Pattern */}
               <div className="absolute inset-0 opacity-[0.15] pointer-events-none bg-[radial-gradient(#94a3b8_1px,transparent_1px)] [background-size:24px_24px]"></div>
 
-              <div className="p-3 md:p-5 border-b border-surface-variant bg-white flex items-center justify-between shadow-sm relative z-10">
-                <div className="flex items-center gap-3 md:gap-4">
+              <div className="p-2 md:p-3 border-b border-surface-variant bg-white flex items-center justify-between shadow-sm relative z-10">
+                <div className="flex items-center gap-2 md:gap-3">
                   <button 
                     onClick={() => setShowMobileChat(false)}
                     className="md:hidden p-1 hover:bg-slate-100 rounded-full"
                   >
-                    <ChevronLeft className="w-6 h-6 text-slate-600" />
+                    <ChevronLeft className="w-5 h-5 text-slate-600" />
                   </button>
-                  <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-primary/10 font-black text-primary flex items-center justify-center text-xs md:text-sm border border-primary/10">
+                  <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-primary/10 font-black text-primary flex items-center justify-center text-xs border border-primary/10">
                     {activeContact?.initials}
                   </div>
                   <div>
                     <h4 className="font-black text-sm md:text-lg leading-tight text-on-surface">{activeContact?.id}</h4>
                     <div className="flex items-center gap-1.5 mt-0.5">
                       <span className={cn("w-1.5 h-1.5 md:w-2 md:h-2 rounded-full", activeContact?.online ? "bg-green-500 animate-pulse" : "bg-slate-300")}></span>
-                      <span className="text-[8px] md:text-[10px] font-black text-on-surface-variant uppercase tracking-widest opacity-60">
+                      <span className="status-label opacity-60">
                         {activeContact?.online ? "Online Now" : "Last seen recently"}
                       </span>
                     </div>
@@ -158,7 +158,7 @@ export function Chat({ contacts, activeContactId, onContactSelect, onSendMessage
                 </div>
               </div>
 
-              <div className="flex-1 p-4 md:p-8 overflow-y-auto space-y-4 md:space-y-6 relative z-10 scroll-smooth custom-scrollbar">
+              <div className="flex-1 p-3 md:p-5 overflow-y-auto space-y-3 md:space-y-4 relative z-10 scroll-smooth custom-scrollbar">
                 <AnimatePresence initial={false}>
                   {activeContact?.messages.map((msg, i) => {
                     const isMe = msg.sender === 'me';
@@ -198,20 +198,20 @@ export function Chat({ contacts, activeContactId, onContactSelect, onSendMessage
                             </button>
                           )}
                           <div className={cn(
-                            "max-w-[85%] md:max-w-[70%] px-5 py-3 rounded-2xl md:rounded-[1.5rem] shadow-sm relative transition-all",
+                            "max-w-[85%] md:max-w-[70%] px-3 py-2 rounded-2xl shadow-sm relative transition-all w-fit",
                             isMe 
                               ? "bg-primary text-white rounded-tr-md shadow-primary/20" 
                               : "bg-white text-on-surface rounded-tl-md border border-slate-100"
                           )}>
-                            <p className="text-sm md:text-base font-bold leading-snug mb-1">{msg.text}</p>
+                            <p className="text-sm md:text-sm font-bold leading-snug">{msg.text}</p>
                             <div className={cn(
-                              "flex items-center gap-1.5 mt-2 justify-end",
-                              isMe ? "text-white/90" : "text-on-surface-variant/90"
+                              "flex items-center gap-1.5 mt-1 justify-end",
+                              isMe ? "text-white/80" : "text-on-surface-variant/90"
                             )}>
-                              <span className="text-[9px] md:text-[10px] font-bold uppercase tracking-widest">
+                              <span className="status-label !text-[9px] opacity-60">
                                 {msg.time}
                               </span>
-                              {isMe && <CheckCheck className="w-3 h-3 md:w-5 md:h-5 text-white/90" />}
+                              {isMe && <CheckCheck className="w-3 h-3 md:w-4 md:h-4 text-white/90" />}
                             </div>
                           </div>
                         </motion.div>
@@ -225,7 +225,7 @@ export function Chat({ contacts, activeContactId, onContactSelect, onSendMessage
               <div className="p-3 md:p-5 bg-white border-t border-surface-variant flex flex-col gap-2 relative z-10 shadow-[0_-4px_20px_rgba(0,0,0,0.03)]">
                 {editingMessageId && (
                   <div className="flex items-center justify-between bg-primary/5 px-4 py-2 rounded-xl mb-1 border-l-4 border-primary">
-                    <p className="text-[10px] font-bold text-primary uppercase">Editing Message</p>
+                    <p className="status-label text-primary">Editing Message</p>
                     <button onClick={cancelEdit} className="p-1 hover:bg-primary/10 rounded-full">
                       <X className="w-3 h-3 text-primary" />
                     </button>

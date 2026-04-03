@@ -19,6 +19,7 @@ interface SidebarProps {
   onPageChange: (page: PageId) => void;
   isOpen?: boolean;
   onClose?: () => void;
+  user: any;
 }
 
 const navItems: { id: PageId; name: string; icon: React.ElementType }[] = [
@@ -31,34 +32,33 @@ const navItems: { id: PageId; name: string; icon: React.ElementType }[] = [
   { id: 'kyc', name: 'KYC & Pay', icon: ShieldCheck },
 ];
 
-export function Sidebar({ currentPage, onPageChange, isOpen, onClose }: SidebarProps) {
+export function Sidebar({ currentPage, onPageChange, isOpen, onClose, user }: SidebarProps) {
   const content = (
     <aside className={cn(
-      "h-screen w-[280px] bg-background border-r border-slate-200 flex flex-col p-8 gap-4 shadow-2xl md:shadow-none",
+      "h-screen w-[240px] bg-background border-r border-slate-200 flex flex-col p-5 gap-3 shadow-2xl md:shadow-none",
       "fixed left-0 top-0 z-50"
     )}>
-      <div className="mb-10 px-2 flex items-center justify-between">
-        <div className="flex items-center gap-3 group cursor-pointer" onClick={() => { onPageChange('dashboard'); onClose?.(); }}>
-          <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center shadow-lg border border-primary/5 transition-transform group-hover:scale-105 active:scale-95 group-hover:shadow-primary/10 overflow-hidden">
+      <div className="mb-6 px-1 flex items-center justify-between">
+        <div className="flex items-center gap-2 group cursor-pointer" onClick={() => { onPageChange('dashboard'); onClose?.(); }}>
+          <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-lg border border-primary/5 transition-transform group-hover:scale-105 active:scale-95 group-hover:shadow-primary/10 overflow-hidden">
             <img src="/logo.png" alt="Eduqra" className="w-full h-full object-contain" onError={(e) => (e.currentTarget.style.display = 'none')} />
-            {/* Fallback Branding if image is missing */}
-            <span className="text-primary font-black text-2xl group-hover:animate-pulse">E</span>
+            <span className="text-primary font-black text-xl group-hover:animate-pulse">E</span>
           </div>
           <div className="flex flex-col">
-            <h1 style={{ fontFamily: '"Inter", sans-serif', fontSize: '22px', fontWeight: 800, letterSpacing: '-0.03em' }} className="text-primary leading-none">Eduqra</h1>
-            <div className="flex items-center gap-2 mt-1">
-              <span style={{ fontSize: '12px', fontWeight: 600, letterSpacing: '1px' }} className="text-secondary uppercase">Learning</span>
+            <h2 className="text-lg font-black text-primary leading-none tracking-tighter">Eduqra</h2>
+            <div className="flex items-center gap-1 mt-0.5">
+              <span className="status-label !text-[9px] text-secondary">Learning</span>
               <div className="w-1 h-1 bg-tertiary rounded-full"></div>
-              <span style={{ fontSize: '12px', fontWeight: 600, letterSpacing: '1px' }} className="text-tertiary uppercase">Atelier</span>
+              <span className="status-label !text-[9px] text-tertiary">Atelier</span>
             </div>
           </div>
         </div>
-        <button onClick={onClose} className="md:hidden p-2 hover:bg-slate-100 rounded-xl transition-colors">
-          <X className="w-6 h-6 text-slate-500" />
+        <button onClick={onClose} className="md:hidden p-1.5 hover:bg-slate-100 rounded-lg transition-colors">
+          <X className="w-5 h-5 text-slate-500" />
         </button>
       </div>
       
-      <p className="px-2 label-caps -mt-6 mb-8 opacity-40">Academic Atelier</p>
+      <p className="px-1 label-caps -mt-5 mb-5 opacity-40 !text-[10px]">Academic Atelier</p>
       
       <nav className="flex-1 space-y-2 overflow-y-auto pr-2 custom-scrollbar">
         {navItems.map((item) => {
@@ -70,7 +70,7 @@ export function Sidebar({ currentPage, onPageChange, isOpen, onClose }: SidebarP
               key={item.id}
               onClick={() => { onPageChange(item.id); onClose?.(); }}
               className={cn(
-                "w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition-all duration-300 group relative overflow-hidden",
+                "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 group relative overflow-hidden",
                 isActive 
                   ? "text-primary font-black bg-primary/10 shadow-sm" 
                   : "text-slate-500 font-bold hover:text-primary hover:bg-slate-50/50"
@@ -79,19 +79,28 @@ export function Sidebar({ currentPage, onPageChange, isOpen, onClose }: SidebarP
               {isActive && (
                 <motion.div 
                   layoutId="active-nav-indicator"
-                  className="absolute left-0 top-2 bottom-2 w-1.5 bg-primary rounded-r-full"
+                  className="absolute left-0 top-1.5 bottom-1.5 w-1.5 bg-primary rounded-r-full"
                   transition={{ type: "spring", stiffness: 300, damping: 30 }}
                 />
               )}
-              <Icon className={cn("w-5 h-5 transition-transform group-hover:scale-110", isActive ? "text-primary" : "text-slate-400 group-hover:text-primary")} />
-              <span style={{ fontSize: '14px', fontWeight: 500 }}>{item.name}</span>
+              <Icon className={cn("w-4 h-4 transition-transform group-hover:scale-110", isActive ? "text-primary" : "text-slate-400 group-hover:text-primary")} />
+              <span className="secondary-text !text-sm font-bold">{item.name}</span>
             </button>
           );
         })}
       </nav>
       
-      <div className="pt-6 border-t border-slate-100">
-        <p className="text-[11px] text-on-surface-variant font-black text-center opacity-30 uppercase tracking-[0.2em]">
+      <div className="pt-4 border-t border-slate-100 mt-auto">
+        <div className="flex items-center gap-3 px-2 mb-4">
+          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-black text-sm border border-primary/5">
+            {user?.displayName?.[0] || user?.email?.[0]?.toUpperCase() || 'U'}
+          </div>
+          <div className="flex flex-col min-w-0">
+            <p className="text-sm font-bold text-on-surface truncate">{user?.displayName || 'Tutor'}</p>
+            <p className="text-[10px] font-medium text-on-surface-variant truncate opacity-60">{user?.email}</p>
+          </div>
+        </div>
+        <p className="text-[10px] text-on-surface-variant font-black text-center opacity-30 uppercase tracking-[0.2em]">
           © 2026 Eduqra Learning
         </p>
       </div>

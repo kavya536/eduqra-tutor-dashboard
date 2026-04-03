@@ -44,13 +44,13 @@ export function Bookings({ bookings, onStatusChange, onReschedule, onPageChange 
   };
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <h2 className="text-2xl font-black text-on-surface tracking-tight">Bookings</h2>
-        <div className="flex items-center bg-white border border-surface-variant px-4 py-2 rounded-xl w-full max-w-sm shadow-sm focus-within:ring-2 ring-primary transition-all">
+    <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <h1 className="page-title">Bookings</h1>
+        <div className="flex items-center bg-white border border-surface-variant px-3 py-1.5 rounded-lg w-full max-w-sm shadow-sm focus-within:ring-2 ring-primary transition-all">
           <Search className="w-5 h-5 text-primary mr-3" />
           <input 
-            className="bg-transparent border-none focus:ring-0 text-sm w-full placeholder:text-slate-400 outline-none font-medium" 
+            className="bg-transparent border-none focus:ring-0 secondary-text w-full placeholder:text-slate-400 outline-none font-medium" 
             placeholder="Search student or subject..." 
             type="text"
             value={searchTerm}
@@ -85,22 +85,22 @@ export function Bookings({ bookings, onStatusChange, onReschedule, onPageChange 
               exit={{ opacity: 0, scale: 0.9 }}
               className="bg-white p-4 md:p-6 rounded-2xl md:rounded-[2rem] border border-surface-variant atelier-card-shadow flex flex-col group hover:-translate-y-1 transition-all duration-300 w-full overflow-hidden"
             >
-              <div className="flex gap-3 md:gap-4 mb-4 md:mb-6 items-center min-w-0">
-                <div className="w-12 h-12 md:w-14 md:h-14 rounded-full bg-primary/10 text-primary flex items-center justify-center font-black text-lg md:text-xl shrink-0 border-2 border-white ring-2 ring-primary/5">
+              <div className="flex gap-2 md:gap-3 mb-3 md:mb-4 items-center min-w-0">
+                <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-primary/10 text-primary flex items-center justify-center font-black text-base md:text-lg shrink-0 border-2 border-white ring-2 ring-primary/5">
                   {booking.name.split(' ').map(n => n[0]).join('')}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex justify-between items-start gap-2">
-                    <h5 className="font-black text-base md:text-lg text-on-surface truncate">{booking.name}</h5>
+                  <div className="flex justify-between items-start gap-1">
+                    <h5 className="font-black text-sm md:text-base text-on-surface truncate">{booking.name}</h5>
                     <span className={cn(
-                      "px-2 py-0.5 md:px-2.5 md:py-1 rounded-full text-[7px] md:text-[8px] font-black uppercase tracking-widest shrink-0 border border-black/5",
+                      "px-1.5 py-0.5 md:px-2 md:py-0.5 rounded-full text-[7px] md:text-[8px] font-black uppercase tracking-widest shrink-0 border border-black/5",
                       booking.status === 'pending' ? "bg-amber-100 text-amber-600" : 
                       booking.status === 'confirmed' ? "bg-primary/10 text-primary" : "bg-slate-100 text-slate-500"
                     )}>
                       {booking.status}
                     </span>
                   </div>
-                  <span className="text-[8px] md:text-[10px] font-bold text-primary bg-primary/5 px-2 py-0.5 rounded-md inline-block mt-1 truncate max-w-full">
+                  <span className="text-[8px] md:text-[9px] font-bold text-primary bg-primary/5 px-1.5 py-0.5 rounded-md inline-block mt-0.5 truncate max-w-full">
                     {booking.subject}
                   </span>
                 </div>
@@ -123,7 +123,7 @@ export function Bookings({ bookings, onStatusChange, onReschedule, onPageChange 
                 </div>
               </div>
 
-              <div className="bg-slate-50/50 p-4 rounded-2xl mb-6 border-l-4 border-primary italic text-xs text-on-surface line-clamp-2">
+              <div className="bg-slate-50/50 p-3 rounded-xl mb-4 border-l-4 border-primary italic text-[10px] text-on-surface line-clamp-1">
                 "{booking.message}"
               </div>
 

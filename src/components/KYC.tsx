@@ -77,13 +77,13 @@ export function KYC() {
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <h2 className="text-2xl font-black text-on-surface tracking-tight">KYC & Payments</h2>
+      <h1 className="page-title">KYC & Payments</h1>
       
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 max-w-5xl">
         {/* KYC Section */}
-        <div className="bg-white p-8 rounded-3xl atelier-card-shadow border border-surface-variant space-y-6">
+        <div className="bg-white p-6 md:p-7 rounded-3xl atelier-card-shadow border border-surface-variant space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="font-black text-lg">Identity Verification</h3>
+            <h3 className="subheading">Identity Verification</h3>
             <span className={cn(
               "text-[8px] font-black px-3 py-1.5 rounded-full uppercase tracking-widest",
               kycStatus === 'not_submitted' ? "bg-slate-100 text-slate-500" :
@@ -140,7 +140,7 @@ export function KYC() {
               <span className="text-[10px] font-black uppercase tracking-widest text-white/50">Available Earnings</span>
               <DollarSign className="w-5 h-5 text-white/50" />
             </div>
-            <h3 className="text-3xl font-black tracking-tight mb-6">₹{balance.toFixed(2)}</h3>
+            <h3 className="text-2xl font-black tracking-tight mb-4">₹{balance.toFixed(2)}</h3>
             <button 
               onClick={() => setIsWithdrawModalOpen(true)}
               disabled={balance <= 0}
@@ -153,9 +153,9 @@ export function KYC() {
             <p className="text-[8px] font-bold text-white/40 uppercase tracking-widest mt-4 text-center pb-2">Powered by RazorpayX</p>
           </div>
 
-          <div className="bg-white p-6 rounded-3xl atelier-card-shadow border border-surface-variant">
-            <h3 className="font-black text-lg mb-6 flex items-center gap-2">
-              <Landmark className="w-5 h-5 text-primary" /> Payment Methods
+          <div className="bg-white p-5 md:p-6 rounded-3xl atelier-card-shadow border border-surface-variant">
+            <h3 className="subheading mb-4 flex items-center gap-2">
+              <Landmark className="w-4 h-4 text-primary" /> Payment Methods
             </h3>
             
             <div className="space-y-4">

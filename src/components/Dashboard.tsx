@@ -7,9 +7,10 @@ interface DashboardProps {
   bookings: Booking[];
   onPageChange: (page: PageId) => void;
   onSearch: (term: string) => void;
+  user: any;
 }
 
-export function Dashboard({ bookings, onPageChange, onSearch }: DashboardProps) {
+export function Dashboard({ bookings, onPageChange, onSearch, user }: DashboardProps) {
   const stats = [
     { label: 'Total Bookings', value: bookings.length, icon: Library, color: 'bg-primary', textColor: 'text-white', filter: 'All' },
     { label: 'Pending', value: bookings.filter(b => b.status === 'pending').length, icon: Clock, color: 'bg-white', textColor: 'text-secondary', filter: 'pending' },
@@ -22,16 +23,16 @@ export function Dashboard({ bookings, onPageChange, onSearch }: DashboardProps) 
     .slice(0, 5);
 
   return (
-    <div className="space-y-6 md:space-y-10">
+    <div className="space-y-4 md:space-y-6">
       <motion.div 
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-        className="flex flex-col lg:flex-row lg:items-center justify-between gap-6"
+        className="flex flex-col lg:flex-row lg:items-center justify-between gap-4"
       >
         <div>
-          <h2 className="text-2xl font-black text-on-surface tracking-tight mb-1">Dashboard</h2>
-          <p className="font-medium text-on-surface-variant/70">Welcome back, Alex. Here's what's happening today.</p>
+          <h1 className="page-title mb-1">Dashboard</h1>
+          <p className="font-medium secondary-text">Welcome back, {user?.displayName || 'Tutor'}. Here's what's happening today.</p>
         </div>
         
         <div className="flex items-center bg-white/80 backdrop-blur-3xl border border-white/30 px-6 py-4 rounded-3xl w-full lg:max-w-sm shadow-sm focus-within:ring-2 ring-primary/30 transition-all group">
@@ -61,7 +62,7 @@ export function Dashboard({ bookings, onPageChange, onSearch }: DashboardProps) 
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 md:gap-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 md:gap-4">
         {stats.map((stat, i) => {
           const Icon = stat.icon;
           return (
@@ -71,7 +72,7 @@ export function Dashboard({ bookings, onPageChange, onSearch }: DashboardProps) 
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.1, duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
               onClick={() => onPageChange('bookings')}
-              className="bg-white border border-slate-100 p-4 rounded-2xl shadow-sm hover:shadow-md transition-all cursor-pointer group flex flex-col gap-3"
+              className="bg-white border border-slate-100 p-3 rounded-xl shadow-sm hover:shadow-md transition-all cursor-pointer group flex flex-col gap-2"
             >
               {/* Icon row — sits above everything */}
               <div className="flex justify-between items-center">
@@ -93,7 +94,7 @@ export function Dashboard({ bookings, onPageChange, onSearch }: DashboardProps) 
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
                   {stat.label}
                 </p>
-                <h3 className="text-3xl font-black text-slate-800 tracking-tight">{stat.value}</h3>
+                <h3 className="text-xl font-black text-slate-800 tracking-tight">{stat.value}</h3>
               </div>
             </motion.div>
           );
@@ -105,10 +106,10 @@ export function Dashboard({ bookings, onPageChange, onSearch }: DashboardProps) 
         initial={{ opacity: 0, y: 40 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.4, duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-        className="bg-white/80 backdrop-blur-3xl p-6 md:p-10 rounded-4xl md:rounded-6xl atelier-card-shadow border border-white/30"
+        className="bg-white/80 backdrop-blur-3xl p-4 md:p-6 rounded-3xl md:rounded-4xl atelier-card-shadow border border-white/30"
       >
-        <div className="flex items-center justify-between mb-6 md:mb-10 border-b border-surface-variant/50 pb-6">
-          <h3 className="text-lg font-bold text-on-surface">Upcoming Sessions</h3>
+        <div className="flex items-center justify-between mb-4 md:mb-6 border-b border-surface-variant/50 pb-4">
+          <h2 className="subheading">Upcoming Sessions</h2>
           <button onClick={() => onPageChange('bookings')} className="label-caps text-primary hover:underline transition-all hover:tracking-tight">View All</button>
         </div>
         <div className="space-y-4 md:space-y-6">

@@ -16,6 +16,9 @@ import { Booking, BookingStatus, ChatContact, AvailabilitySlot, Review, PageId, 
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './lib/utils';
 import { GraduationCap, LogOut, X, User, Camera, Mic, XCircle, Send, MessageSquare, Smile, Clock, Monitor } from 'lucide-react';
+import { auth, db } from './firebase';
+import { onAuthStateChanged } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
 
 const INITIAL_BOOKINGS: Booking[] = [
   { id: 1, name: 'Alex Johnson', status: 'confirmed', subject: 'Mathematics', date: 'Oct 24, 2026', time: '10:00 AM', duration: '1 Hrs', message: 'Looking forward to reviewing integrals.', studentPhone: '919876543210', studentEmail: 'alex.j@example.com' },
@@ -75,6 +78,47 @@ const INITIAL_NOTIFICATIONS: TutorNotification[] = [
 
 export default function App() {
   const [authState, setAuthState] = useState<'login' | 'register' | 'authenticated'>('login');
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        setAuthState('authenticated');
+        // Fetch full profile from Firestore backend
+        try {
+          console.log("🔍 Fetching Firestore data for UUID:", user.uid);
+          const docRef = doc(db, 'tutors', user.uid);
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+            console.log("✅ Tutor Document Found:", data);
+            setCurrentUser({ 
+              ...user, 
+              ...data, 
+              displayName: data.name || user.displayName || user.email?.split('@')[0],
+              email: data.email || user.email 
+            });
+          } else {
+            console.warn("⚠️ No Firestore document for this tutor. Defaulting to Auth User.");
+            setCurrentUser({
+              ...user,
+              displayName: user.displayName || user.email?.split('@')[0]
+            });
+          }
+        } catch (err) {
+          console.error("❌ Error fetching tutor profile:", err);
+          setCurrentUser(user);
+        }
+      } else {
+        setAuthState('login');
+        setCurrentUser(null);
+      }
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
   const [currentPage, setCurrentPage] = useState<PageId>('dashboard');
 
   useState(() => {
@@ -277,7 +321,7 @@ export default function App() {
   const renderPage = () => {
     switch (currentPage) {
       case 'dashboard':
-        return <Dashboard bookings={bookings} onPageChange={setCurrentPage} onSearch={handleSearch} />;
+        return <Dashboard user={currentUser} bookings={bookings} onPageChange={setCurrentPage} onSearch={handleSearch} />;
       case 'bookings':
         return <Bookings bookings={bookings} onStatusChange={handleStatusChange} onReschedule={handleReschedule} onPageChange={setCurrentPage} />;
       case 'chat':
@@ -293,13 +337,22 @@ export default function App() {
       case 'settings':
         return <Settings />;
       case 'profile':
-        return <Profile onExperienceChange={setExperience} />;
+        return <Profile user={currentUser} onExperienceChange={setExperience} />;
       case 'live-class':
         return null; // Handled by fixed overlay
       default:
-        return <Dashboard bookings={bookings} onPageChange={setCurrentPage} onSearch={handleSearch} />;
+        return <Dashboard user={currentUser} bookings={bookings} onPageChange={setCurrentPage} onSearch={handleSearch} />;
     }
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 text-center">
+        <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mb-6"></div>
+        <p className="label-caps opacity-40 animate-pulse tracking-widest font-black uppercase text-xs">Syncing with Eduqra Database...</p>
+      </div>
+    );
+  }
 
   if (authState !== 'authenticated') {
     return (authState === 'register' 
@@ -309,9 +362,10 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-background text-on-surface">
-      <Sidebar currentPage={currentPage} onPageChange={setCurrentPage} isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+      <Sidebar user={currentUser} currentPage={currentPage} onPageChange={setCurrentPage} isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
       <main className="md:ml-[280px] ml-0 min-h-screen flex flex-col transition-all duration-500 ease-[0.16,1,0.3,1]">
         <TopBar
+          user={currentUser}
           onPageChange={setCurrentPage}
           onToggleSidebar={() => setIsSidebarOpen(true)}
           onLogout={handleLogout}

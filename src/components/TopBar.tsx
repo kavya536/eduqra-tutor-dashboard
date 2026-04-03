@@ -11,6 +11,7 @@ interface TopBarProps {
   notifications: TutorNotification[];
   onMarkAllRead: () => void;
   onMarkRead: (id: string) => void;
+  user: any;
 }
 
 const notifIconMap = {
@@ -25,7 +26,7 @@ const notifBgMap = {
   review:  'bg-amber-50',
 };
 
-export function TopBar({ onPageChange, onToggleSidebar, onLogout, notifications, onMarkAllRead, onMarkRead }: TopBarProps) {
+export function TopBar({ onPageChange, onToggleSidebar, onLogout, notifications, onMarkAllRead, onMarkRead, user }: TopBarProps) {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen]     = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
@@ -168,11 +169,13 @@ export function TopBar({ onPageChange, onToggleSidebar, onLogout, notifications,
             className="flex items-center gap-4 pl-6 border-l border-surface-variant/50 cursor-pointer group"
           >
             <div className="text-right hidden sm:block">
-              <p className="text-sm font-black text-on-surface group-hover:text-primary transition-colors font-display tracking-tight">Alex Johnson</p>
-              <p className="label-caps opacity-60">Premium Tutor</p>
+              <p className="text-sm font-black text-on-surface group-hover:text-primary transition-colors font-display tracking-tight">
+                {user?.displayName || 'Tutor Account'}
+              </p>
+              <p className="label-caps opacity-60">Verified Tutor</p>
             </div>
             <div className="w-11 h-11 rounded-2xl bg-primary text-white flex items-center justify-center font-black text-sm shadow-lg shadow-primary/20 group-hover:scale-110 group-hover:rotate-3 transition-all">
-              AJ
+              {user?.displayName?.[0] || user?.email?.[0]?.toUpperCase() || 'U'}
             </div>
             <ChevronDown className={cn('w-4 h-4 text-slate-400 transition-transform duration-500', isProfileOpen && 'rotate-180')} />
           </button>
@@ -186,8 +189,8 @@ export function TopBar({ onPageChange, onToggleSidebar, onLogout, notifications,
                 className="absolute top-[calc(100%+10px)] right-0 w-56 bg-white rounded-2xl shadow-xl border border-surface-variant py-2 z-[100] overflow-hidden"
               >
                 <div className="px-4 py-3 border-b border-surface-variant mb-1">
-                  <p className="font-black text-primary text-sm">Tutor Account</p>
-                  <p className="text-[10px] text-on-surface-variant font-bold">alex.j@eduqra.com</p>
+                  <p className="font-black text-primary text-sm truncate">{user?.displayName || 'Tutor'}</p>
+                  <p className="text-[10px] text-on-surface-variant font-bold truncate">{user?.email}</p>
                 </div>
                 <button onClick={() => { onPageChange('profile'); setIsProfileOpen(false); }}
                   className="w-full text-left px-4 py-2.5 hover:bg-primary/5 text-xs font-bold flex items-center gap-3 transition-colors">

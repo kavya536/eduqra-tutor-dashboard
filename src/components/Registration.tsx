@@ -1,6 +1,10 @@
-import { useState, FormEvent } from 'react';
+import { useState, FormEvent, ChangeEvent } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { GraduationCap, BadgeCheck, Video, User, Mail, Phone, Lock, Award, ShieldCheck, Clock, Globe, Wallet, Check } from 'lucide-react';
+import { GraduationCap, BadgeCheck, Video, User, Mail, Phone, Lock, Award, ShieldCheck, Clock, Globe, Wallet, Check, AlertCircle } from 'lucide-react';
+import { auth, db, storage } from '../firebase';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { cn } from '../lib/utils';
 
 interface RegistrationProps {
@@ -8,22 +12,124 @@ interface RegistrationProps {
   onSwitchToLogin: () => void;
 }
 
+const mapAuthError = (code: string) => {
+  switch (code) {
+    case 'auth/configuration-not-found':
+      return "The Authentication service is not enabled for this project. Please enable Email/Password login in the Firebase Console.";
+    case 'auth/email-already-in-use':
+      return "This email is already registered. Please try logging in instead.";
+    case 'auth/weak-password':
+      return "Password is too weak. Please use at least 6 characters.";
+    case 'auth/invalid-email':
+      return "Please enter a valid email address.";
+    case 'auth/network-request-failed':
+      return "Network connection issue. Please check your internet.";
+    default:
+      return "An unexpected error occurred. Please try again or contact support.";
+  }
+};
+
 export function Registration({ onComplete, onSwitchToLogin }: RegistrationProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (e: FormEvent) => {
+  // Form State
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    password: '',
+    qualification: '',
+    experience: 0
+  });
+
+  // File State
+  const [files, setFiles] = useState<{
+    identityProof: File | null;
+    certificate: File | null;
+    demoVideo: File | null;
+  }>({
+    identityProof: null,
+    certificate: null,
+    demoVideo: null
+  });
+
+  const handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: name === 'experience' ? parseInt(value) || 0 : value }));
+  };
+
+  const handleFileChange = (e: ChangeEvent<HTMLInputElement>, field: keyof typeof files) => {
+    if (e.target.files && e.target.files[0]) {
+      setFiles(prev => ({ ...prev, [field]: e.target.files![0] }));
+    }
+  };
+
+  const uploadFile = async (file: File, path: string) => {
+    const storageRef = ref(storage, path);
+    await uploadBytes(storageRef, file);
+    return getDownloadURL(storageRef);
+  };
+
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-    // Simulate API call
-    setTimeout(() => {
+    setError(null);
+
+    // Basic Validation
+    if (formData.experience >= 1 && !files.certificate) {
+      setError("Experience is 1 year or above. Certificate is mandatory.");
+      setIsSubmitting(false);
+      return;
+    }
+
+    if (!files.identityProof) {
+      setError("Identity Proof is mandatory.");
+      setIsSubmitting(false);
+      return;
+    }
+
+    try {
+      // 1. Create Auth User
+      const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
+      const uid = userCredential.user.uid;
+
+      // 2. Upload Files
+      const identityURL = await uploadFile(files.identityProof, `tutors/${uid}/identity_${files.identityProof.name}`);
+      let certificateURL = '';
+      if (files.certificate) {
+        certificateURL = await uploadFile(files.certificate, `tutors/${uid}/cert_${files.certificate.name}`);
+      }
+      let demoVideoURL = '';
+      if (files.demoVideo) {
+        demoVideoURL = await uploadFile(files.demoVideo, `tutors/${uid}/video_${files.demoVideo.name}`);
+      }
+
+      // 3. Save to Firestore (Tutors "Table")
+      await setDoc(doc(db, 'tutors', uid), {
+        id: uid,
+        ...formData,
+        identityProof: identityURL,
+        certificate: certificateURL,
+        demoVideo: demoVideoURL,
+        status: 'pending',
+        createdAt: serverTimestamp(),
+        rating: 0
+      });
+
       setIsSubmitting(false);
       setIsSuccess(true);
-      // Wait for success animation then complete
       setTimeout(() => {
         onComplete();
-      }, 200);
-    }, 100);
+      }, 1500);
+
+    } catch (err: any) {
+      console.error("Registration Error:", err);
+      const friendlyMessage = mapAuthError(err.code);
+      setError(friendlyMessage);
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -87,28 +193,28 @@ export function Registration({ onComplete, onSwitchToLogin }: RegistrationProps)
                       <label className="label-caps ml-2">Full Name</label>
                       <div className="relative group">
                         <User className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-primary transition-colors" />
-                        <input type="text" placeholder="Enter full name" className="input-field" />
+                        <input name="name" type="text" placeholder="Enter full name" className="input-field" value={formData.name} onChange={handleInputChange} required />
                       </div>
                     </div>
                     <div className="space-y-2">
                       <label className="label-caps ml-2">Email ID</label>
                       <div className="relative group">
                         <Mail className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-primary transition-colors" />
-                        <input type="text" placeholder="example@eduqra.com" className="input-field" />
+                        <input name="email" type="email" placeholder="example@eduqra.com" className="input-field" value={formData.email} onChange={handleInputChange} required />
                       </div>
                     </div>
                     <div className="space-y-2">
                       <label className="label-caps ml-2">Mobile Number</label>
                       <div className="relative group">
                         <Phone className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-primary transition-colors" />
-                        <input type="text" placeholder="+1 234 567 890" className="input-field" />
+                        <input name="phone" type="tel" placeholder="+1 234 567 890" className="input-field" value={formData.phone} onChange={handleInputChange} required />
                       </div>
                     </div>
                     <div className="space-y-2">
                       <label className="label-caps ml-2">Password</label>
                       <div className="relative group">
                         <Lock className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-primary transition-colors" />
-                        <input type="password" placeholder="Create secure password" className="input-field" />
+                        <input name="password" type="password" placeholder="Create secure password" className="input-field" value={formData.password} onChange={handleInputChange} required minLength={6} />
                       </div>
                     </div>
                   </div>
@@ -116,41 +222,55 @@ export function Registration({ onComplete, onSwitchToLogin }: RegistrationProps)
                   {/* Professional Info & Certifications */}
                   <div className="space-y-8">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div className="space-y-2">
+                       <div className="space-y-2">
                         <label className="label-caps ml-2">Highest Qualification</label>
                         <div className="relative group">
                           <Award className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-primary transition-colors" />
-                          <input type="text" placeholder="e.g. PhD in Physics" className="input-field" />
+                          <input name="qualification" type="text" placeholder="e.g. PhD in Physics" className="input-field" value={formData.qualification} onChange={handleInputChange} required />
                         </div>
                       </div>
                       <div className="space-y-2">
                         <label className="label-caps ml-2">Experience (Years)</label>
-                        <input type="number" placeholder="Years of teaching" className="input-field" />
+                        <input name="experience" type="number" placeholder="Years of teaching" className="input-field" value={formData.experience} onChange={handleInputChange} required min={0} />
                       </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                      <div className="bg-slate-50 border-2 border-dashed border-slate-200 p-8 rounded-5xl flex flex-col items-center text-center relative hover:border-primary hover:bg-primary/5 transition-all group cursor-pointer h-full">
-                        <BadgeCheck className="w-10 h-10 text-slate-400 mb-3 group-hover:text-primary transition-all group-hover:-translate-y-1" />
-                        <p className="font-black text-lg text-on-surface mb-1 leading-tight">Identity Proof</p>
-                        <p className="text-[10px] text-on-surface-variant font-bold opacity-50 uppercase tracking-widest">Aadhaar / PAN</p>
-                        <input type="file" className="absolute inset-0 opacity-0 cursor-pointer" />
+                      <div className={cn("bg-slate-50 border-2 border-dashed p-8 rounded-5xl flex flex-col items-center text-center relative hover:border-primary hover:bg-primary/5 transition-all group cursor-pointer h-full", files.identityProof ? "border-green-500 bg-green-50/30" : "border-slate-200")}>
+                        <BadgeCheck className={cn("w-10 h-10 mb-3 group-hover:text-primary transition-all group-hover:-translate-y-1", files.identityProof ? "text-green-500" : "text-slate-400")} />
+                        <p className="font-black text-lg text-on-surface mb-1 leading-tight">{files.identityProof ? 'File Selected' : 'Identity Proof'}</p>
+                        <p className="text-[10px] text-on-surface-variant font-bold opacity-50 uppercase tracking-widest">{files.identityProof ? files.identityProof.name.substring(0, 20) + '...' : 'Aadhaar / PAN'}</p>
+                        <input type="file" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => handleFileChange(e, 'identityProof')} required />
                       </div>
 
-                      <div className="bg-slate-50 border-2 border-dashed border-slate-200 p-8 rounded-5xl flex flex-col items-center text-center relative hover:border-primary hover:bg-primary/5 transition-all group cursor-pointer h-full">
-                        <GraduationCap className="w-10 h-10 text-slate-400 mb-3 group-hover:text-primary transition-all group-hover:-translate-y-1" />
-                        <p className="font-black text-lg text-on-surface mb-1 leading-tight">Certificates</p>
-                        <p className="text-[10px] text-on-surface-variant font-bold opacity-50 uppercase tracking-widest">Degrees / Awards</p>
-                        <input type="file" className="absolute inset-0 opacity-0 cursor-pointer" />
+                      <div className={cn("bg-slate-50 border-2 border-dashed p-8 rounded-5xl flex flex-col items-center text-center relative hover:border-primary hover:bg-primary/5 transition-all group cursor-pointer h-full", files.certificate ? "border-green-500 bg-green-50/30" : "border-slate-200")}>
+                        <GraduationCap className={cn("w-10 h-10 mb-3 group-hover:text-primary transition-all group-hover:-translate-y-1", files.certificate ? "text-green-500" : "text-slate-400")} />
+                        <p className="font-black text-lg text-on-surface mb-1 leading-tight">{files.certificate ? 'File Selected' : 'Certificates'}</p>
+                        <p className="text-[10px] text-on-surface-variant font-bold opacity-50 uppercase tracking-widest">{files.certificate ? files.certificate.name.substring(0, 20) + '...' : 'Degrees / Awards'}</p>
+                        <input type="file" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => handleFileChange(e, 'certificate')} required={formData.experience >= 1} />
                       </div>
 
-                      <div className="bg-slate-50 border-2 border-dashed border-slate-200 p-8 rounded-5xl flex flex-col items-center text-center relative hover:border-primary hover:bg-primary/5 transition-all group cursor-pointer h-full">
-                        <Video className="w-10 h-10 text-slate-400 mb-3 group-hover:text-primary transition-all group-hover:-translate-y-1" />
-                        <p className="font-black text-lg text-on-surface mb-1 leading-tight">Demo Video</p>
-                        <p className="text-[10px] text-on-surface-variant font-bold opacity-50 uppercase tracking-widest">30-40 min session</p>
-                        <input type="file" accept="video/*" className="absolute inset-0 opacity-0 cursor-pointer" />
+                      <div className={cn("bg-slate-50 border-2 border-dashed p-8 rounded-5xl flex flex-col items-center text-center relative hover:border-primary hover:bg-primary/5 transition-all group cursor-pointer h-full", files.demoVideo ? "border-green-500 bg-green-50/30" : "border-slate-200")}>
+                        <Video className={cn("w-10 h-10 mb-3 group-hover:text-primary transition-all group-hover:-translate-y-1", files.demoVideo ? "text-green-500" : "text-slate-400")} />
+                        <p className="font-black text-lg text-on-surface mb-1 leading-tight">{files.demoVideo ? 'File Selected' : 'Demo Video'}</p>
+                        <p className="text-[10px] text-on-surface-variant font-bold opacity-50 uppercase tracking-widest">{files.demoVideo ? files.demoVideo.name.substring(0, 20) + '...' : '30-40 min session'}</p>
+                        <input type="file" accept="video/*" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => handleFileChange(e, 'demoVideo')} />
                       </div>
                     </div>
+
+                    <AnimatePresence>
+                      {error && (
+                        <motion.div 
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="bg-rose-50 border border-rose-200 p-4 rounded-2xl flex items-center gap-3 text-rose-600"
+                        >
+                          <AlertCircle className="w-5 h-5 shrink-0" />
+                          <p className="text-sm font-bold">{error}</p>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </div>
                 </div>
               )}

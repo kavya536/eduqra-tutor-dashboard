@@ -21,19 +21,19 @@ export function Pricing({ experience }: PricingProps) {
   };
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-black text-on-surface tracking-tight">Pricing</h2>
+        <h1 className="page-title">Pricing</h1>
         {isFresher && (
           <div className="flex items-center gap-2 bg-amber-50 text-amber-700 px-4 py-2 rounded-full border border-amber-200 animate-pulse">
             <Lock className="w-4 h-4" />
-            <span className="text-[10px] font-black uppercase tracking-widest">Pricing Locked</span>
+            <span className="label-caps">Pricing Locked</span>
           </div>
         )}
       </div>
       
       <div className={cn(
-        "bg-white p-10 rounded-[2.5rem] atelier-card-shadow max-w-3xl space-y-8 border border-surface-variant relative overflow-hidden transition-all",
+        "bg-white p-6 md:p-8 rounded-3xl atelier-card-shadow max-w-3xl space-y-6 border border-surface-variant relative overflow-hidden transition-all",
         isDisabled && "opacity-80 grayscale-[0.5]"
       )}>
         {isDisabled && (
@@ -42,11 +42,11 @@ export function Pricing({ experience }: PricingProps) {
               <div className="w-16 h-16 bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center mx-auto">
                 <Lock className="w-8 h-8" />
               </div>
-              <h3 className="text-xl font-black text-on-surface">Experience Required</h3>
-              <p className="text-sm font-bold text-on-surface-variant leading-relaxed">
+              <h2 className="subheading">Experience Required</h2>
+              <p className="secondary-text font-bold leading-relaxed">
                 To maintain quality standards, tutors must have at least <span className="text-primary underline decoration-2 underline-offset-4">1 year of experience</span> to set custom pricing.
               </p>
-              <div className="bg-slate-50 p-4 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-500">
+              <div className="bg-slate-50 p-4 rounded-xl label-caps text-slate-500">
                 Current Experience: {experience} Years
               </div>
             </div>
@@ -60,7 +60,7 @@ export function Pricing({ experience }: PricingProps) {
           "bg-slate-50 border-slate-200 text-slate-500"
         )}>
           {isPro ? <Star className="w-4 h-4 fill-primary" /> : <Star className="w-4 h-4" />}
-          <span className="text-[10px] font-black uppercase tracking-widest">
+          <span className="label-caps">
             {isPro ? 'Premium Pricing Unlocked' : isFresher ? 'Fresher Benefit Mode' : 'Standard Pricing Mode'}
           </span>
         </div>
@@ -79,7 +79,7 @@ export function Pricing({ experience }: PricingProps) {
 
         <div className="space-y-6">
           <div>
-            <label className="block text-[10px] font-black mb-3 uppercase tracking-wider text-on-surface-variant">Class Rate (per hour)</label>
+            <label className="block label-caps mb-3">Class Rate (per hour)</label>
             <div className="flex items-center gap-4">
               <span className="text-3xl font-black text-primary">₹</span>
               <div className="relative w-full sm:w-1/2">
@@ -87,7 +87,7 @@ export function Pricing({ experience }: PricingProps) {
                   type="number" 
                   value={rate}
                   onChange={(e) => setRate(Number(e.target.value))}
-                  className="w-full p-5 rounded-2xl text-2xl font-black bg-slate-50 border-none focus:ring-2 focus:ring-primary outline-none shadow-inner" 
+                  className="w-full p-4 rounded-xl text-xl font-black bg-slate-50 border-none focus:ring-2 focus:ring-primary outline-none shadow-inner" 
                 />
                 {isFresher && rate === 0 && (
                   <div className="absolute right-6 top-1/2 -translate-y-1/2 bg-green-500 text-white px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider">

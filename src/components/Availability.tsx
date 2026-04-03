@@ -100,7 +100,7 @@ export function Availability({ slots, bookings }: AvailabilityProps) {
       {/* ── Page Title ── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-extrabold text-on-surface tracking-tight">Availability</h2>
+          <h1 className="page-title">Availability</h1>
           <p className="text-[11px] font-bold text-on-surface-variant opacity-60 mt-0.5">
             Manage your weekly teaching schedule — students book from your free slots.
           </p>
