@@ -1,6 +1,6 @@
 import { Send, User, Check, CheckCheck, ChevronLeft, X, Edit2 } from 'lucide-react';
 import { ChatContact } from '../types';
-import { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 
@@ -13,7 +13,7 @@ interface ChatProps {
 
 export function Chat({ contacts, activeContactId, onContactSelect, onSendMessage }: ChatProps) {
   const [inputText, setInputText] = useState('');
-  const [showMobileChat, setShowMobileChat] = useState(false);
+  const [showMobileChat, setShowMobileChat] = useState(!!activeContactId);
   const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
@@ -162,10 +162,10 @@ export function Chat({ contacts, activeContactId, onContactSelect, onSendMessage
                 <AnimatePresence initial={false}>
                   {activeContact?.messages.map((msg, i) => {
                     const isMe = msg.sender === 'me';
-                    const dateVal = (msg as any).date; 
-                    const prevDateVal = i > 0 ? (activeContact.messages[i-1] as any).date : undefined;
+                    const dateVal = (msg as any).date || 'TODAY';
+                    const prevDateVal = i > 0 ? ((activeContact.messages[i-1] as any).date || 'TODAY') : undefined;
                     const showDateSeparator = i === 0 || dateVal !== prevDateVal;
-                    const displayDate = dateVal || (i < activeContact.messages.length - 1 ? 'YESTERDAY' : 'TODAY');
+                    const displayDate = dateVal;
 
                     return (
                       <React.Fragment key={msg.id}>

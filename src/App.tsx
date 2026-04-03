@@ -12,7 +12,7 @@ import { Settings } from './components/Settings';
 import { Profile } from './components/Profile';
 import { Registration } from './components/Registration';
 import { Login } from './components/Login';
-import { Booking, BookingStatus, ChatContact, AvailabilitySlot, Review, PageId, TutorNotification } from './types';
+import { Booking, BookingStatus, ChatContact, AvailabilitySlot, Review, PageId, TutorNotification, Message } from './types';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './lib/utils';
 import { GraduationCap, LogOut, X, User, Camera, Mic, XCircle, Send, MessageSquare, Smile, Clock, Monitor } from 'lucide-react';
@@ -83,7 +83,7 @@ export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [bookings, setBookings] = useState<Booking[]>(INITIAL_BOOKINGS);
   const [contacts, setContacts] = useState<ChatContact[]>(INITIAL_CONTACTS);
-  const [activeChatId, setActiveChatId] = useState<string | null>(null);
+  const [activeChatId, setActiveChatId] = useState<string | null>(INITIAL_CONTACTS[0]?.id || null);
   const [slots, setSlots] = useState<AvailabilitySlot[]>(INITIAL_SLOTS);
   const [experience, setExperience] = useState(6);
   const [searchTerm, setSearchTerm] = useState('');
@@ -248,7 +248,7 @@ export default function App() {
         if (messageId) {
           newMessages = c.messages.map(m => m.id === messageId ? { ...m, text } : m);
         } else {
-          newMessages = [...c.messages, { id: Date.now(), sender: 'me', text, time }];
+          newMessages = [...c.messages, { id: Date.now(), sender: 'me', text, time, date: 'TODAY' } as Message];
         }
         return { ...c, messages: newMessages };
       }
