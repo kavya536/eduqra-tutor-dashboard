@@ -83,7 +83,7 @@ export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [bookings, setBookings] = useState<Booking[]>(INITIAL_BOOKINGS);
   const [contacts, setContacts] = useState<ChatContact[]>(INITIAL_CONTACTS);
-  const [activeChatId, setActiveChatId] = useState<string | null>(INITIAL_CONTACTS[0]?.id || null);
+  const [activeChatId, setActiveChatId] = useState<string | null>(null);
   const [slots, setSlots] = useState<AvailabilitySlot[]>(INITIAL_SLOTS);
   const [experience, setExperience] = useState(6);
   const [searchTerm, setSearchTerm] = useState('');

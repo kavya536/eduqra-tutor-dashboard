@@ -203,12 +203,7 @@ export function Chat({ contacts, activeContactId, onContactSelect, onSendMessage
                               ? "bg-primary text-white rounded-tr-md shadow-primary/20" 
                               : "bg-white text-on-surface rounded-tl-md border border-slate-100"
                           )}>
-                            {!isMe && (
-                              <p className="text-[10px] font-bold text-primary/70 uppercase tracking-widest mb-1.5 opacity-100">
-                                {activeContact?.id}
-                              </p>
-                            )}
-                            <p className="text-base md:text-lg font-bold leading-snug mb-1">{msg.text}</p>
+                            <p className="text-sm md:text-base font-bold leading-snug mb-1">{msg.text}</p>
                             <div className={cn(
                               "flex items-center gap-1.5 mt-2 justify-end",
                               isMe ? "text-white/90" : "text-on-surface-variant/90"
