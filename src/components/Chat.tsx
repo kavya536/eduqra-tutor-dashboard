@@ -53,7 +53,7 @@ export function Chat({ contacts, activeContactId, onContactSelect, onSendMessage
   return (
     <div className="h-[calc(100vh-80px)] md:h-[calc(100vh-100px)] flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-500 -mt-2 md:-mt-4">
       <div className="flex items-center justify-between mb-2 md:mb-3 shrink-0">
-        <h2 className="text-2xl md:text-4xl font-black text-on-surface tracking-tighter">Messages</h2>
+        <h2 className="text-2xl font-black text-on-surface tracking-tight">Messages</h2>
         <div className="flex items-center gap-2 bg-primary/10 px-4 py-2 rounded-full">
           <span className="w-2 h-2 bg-primary rounded-full animate-pulse"></span>
           <span className="text-[10px] font-black text-primary uppercase tracking-widest">Live Support</span>
@@ -127,13 +127,13 @@ export function Chat({ contacts, activeContactId, onContactSelect, onSendMessage
 
         {/* Right Panel - Messages */}
         <div className={cn(
-          "flex-1 flex flex-col bg-[#f0f2f5] relative transition-all duration-300",
+          "flex-1 flex flex-col bg-gradient-to-b from-slate-50/50 to-slate-100/80 relative transition-all duration-300",
           !showMobileChat ? "hidden md:flex" : "flex"
         )}>
           {activeContact ? (
             <>
-              {/* WhatsApp Style Background Pattern */}
-              <div className="absolute inset-0 opacity-[0.03] pointer-events-none bg-[url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png')]"></div>
+              {/* Subtle Modern Dot Pattern */}
+              <div className="absolute inset-0 opacity-[0.15] pointer-events-none bg-[radial-gradient(#94a3b8_1px,transparent_1px)] [background-size:24px_24px]"></div>
 
               <div className="p-3 md:p-5 border-b border-surface-variant bg-white flex items-center justify-between shadow-sm relative z-10">
                 <div className="flex items-center gap-3 md:gap-4">
@@ -158,64 +158,69 @@ export function Chat({ contacts, activeContactId, onContactSelect, onSendMessage
                 </div>
               </div>
 
-              <div className="flex-1 p-4 md:p-8 overflow-y-auto space-y-3 md:space-y-4 relative z-10 scroll-smooth">
+              <div className="flex-1 p-4 md:p-8 overflow-y-auto space-y-4 md:space-y-6 relative z-10 scroll-smooth custom-scrollbar">
                 <AnimatePresence initial={false}>
                   {activeContact?.messages.map((msg, i) => {
                     const isMe = msg.sender === 'me';
+                    const dateVal = (msg as any).date; 
+                    const prevDateVal = i > 0 ? (activeContact.messages[i-1] as any).date : undefined;
+                    const showDateSeparator = i === 0 || dateVal !== prevDateVal;
+                    const displayDate = dateVal || (i < activeContact.messages.length - 1 ? 'YESTERDAY' : 'TODAY');
+
                     return (
-                      <motion.div 
-                        key={msg.id}
-                        initial={{ opacity: 0, y: 15, scale: 0.9, filter: 'blur(4px)' }}
-                        animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' }}
-                        transition={{ duration: 0.4, ease: "easeOut" }}
-                        className={cn(
-                          "flex w-full group relative",
-                          isMe ? "justify-end" : "justify-start"
-                        )}
-                      >
-                        {isMe && (
-                          <button 
-                            onClick={() => {
-                              setInputText(msg.text);
-                              setEditingMessageId(msg.id);
-                            }}
-                            className="bg-white/90 p-2 rounded-full shadow-sm mr-2 opacity-0 group-hover:opacity-100 transition-all hover:bg-primary hover:text-white self-center border border-primary/10"
-                            title="Edit message"
-                          >
-                            <Edit2 size={14} />
-                          </button>
-                        )}
-                        <div className={cn(
-                          "max-w-[95%] md:max-w-[85%] px-4 md:px-8 py-3 md:py-5 rounded-xl md:rounded-[2.5rem] shadow-md relative transition-all",
-                          isMe 
-                            ? "bg-primary text-white rounded-tr-none" 
-                            : "bg-white text-on-surface rounded-tl-none border border-surface-variant"
-                        )}>
-                          {!isMe && (
-                            <p className="text-[9px] md:text-[11px] font-black text-primary uppercase tracking-widest mb-1 md:mb-2 opacity-80">
-                              {activeContact?.id}
-                            </p>
-                          )}
-                          <p className="text-sm md:text-lg font-bold leading-relaxed mb-1 md:mb-2">{msg.text}</p>
-                          <div className={cn(
-                            "flex items-center gap-1 md:gap-2 justify-end",
-                            isMe ? "text-white/60" : "text-on-surface-variant/60"
-                          )}>
-                            <span className="text-[8px] md:text-[10px] font-black uppercase tracking-tight">
-                              {msg.time}
+                      <React.Fragment key={msg.id}>
+                        {showDateSeparator && (
+                          <div className="flex justify-center my-4 md:my-6 relative z-10 w-full">
+                            <span className="bg-slate-200/60 text-slate-600 text-[9px] md:text-[10px] font-bold px-3 py-1 rounded-lg uppercase tracking-widest backdrop-blur-sm">
+                              {displayDate}
                             </span>
-                            {isMe && <CheckCheck className="w-3 h-3 md:w-5 md:h-5 text-white/80" />}
                           </div>
-                          
-                          {/* Bubble Tail */}
+                        )}
+                        <motion.div 
+                          initial={{ opacity: 0, y: 15, scale: 0.9, filter: 'blur(4px)' }}
+                          animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' }}
+                          transition={{ duration: 0.4, ease: "easeOut" }}
+                          className={cn(
+                            "flex w-full group relative",
+                            isMe ? "justify-end" : "justify-start"
+                          )}
+                        >
+                          {isMe && (
+                            <button 
+                              onClick={() => {
+                                setInputText(msg.text);
+                                setEditingMessageId(msg.id);
+                              }}
+                              className="bg-white/90 p-2 rounded-full shadow-sm mr-2 opacity-0 group-hover:opacity-100 transition-all hover:bg-primary hover:text-white self-center border border-primary/10"
+                              title="Edit message"
+                            >
+                              <Edit2 size={14} />
+                            </button>
+                          )}
                           <div className={cn(
-                            "absolute top-0 w-2 md:w-4 h-2 md:h-4",
+                            "max-w-[85%] md:max-w-[70%] px-5 py-3 rounded-2xl md:rounded-[1.5rem] shadow-sm relative transition-all",
                             isMe 
-                              ? "right-[-8px] md:right-[-12px] border-l-[8px] md:border-l-[12px] border-l-primary border-b-[8px] md:border-b-[12px] border-b-transparent" 
-                              : "left-[-8px] md:left-[-12px] border-r-[8px] md:border-r-[12px] border-r-white border-b-[8px] md:border-b-[12px] border-b-transparent"
-                          )}></div>
-                        </div>
-                      </motion.div>
+                              ? "bg-primary text-white rounded-tr-md shadow-primary/20" 
+                              : "bg-white text-on-surface rounded-tl-md border border-slate-100"
+                          )}>
+                            {!isMe && (
+                              <p className="text-[10px] font-bold text-primary/70 uppercase tracking-widest mb-1.5 opacity-100">
+                                {activeContact?.id}
+                              </p>
+                            )}
+                            <p className="text-base md:text-lg font-bold leading-snug mb-1">{msg.text}</p>
+                            <div className={cn(
+                              "flex items-center gap-1.5 mt-2 justify-end",
+                              isMe ? "text-white/90" : "text-on-surface-variant/90"
+                            )}>
+                              <span className="text-[9px] md:text-[10px] font-bold uppercase tracking-widest">
+                                {msg.time}
+                              </span>
+                              {isMe && <CheckCheck className="w-3 h-3 md:w-5 md:h-5 text-white/90" />}
+                            </div>
+                          </div>
+                        </motion.div>
+                      </React.Fragment>
                     );
                   })}
                 </AnimatePresence>

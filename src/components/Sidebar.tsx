@@ -45,11 +45,11 @@ export function Sidebar({ currentPage, onPageChange, isOpen, onClose }: SidebarP
             <span className="text-primary font-black text-2xl group-hover:animate-pulse">E</span>
           </div>
           <div className="flex flex-col">
-            <h1 className="text-2xl font-black text-primary tracking-tighter leading-none">Eduqra</h1>
+            <h1 style={{ fontFamily: '"Inter", sans-serif', fontSize: '22px', fontWeight: 800, letterSpacing: '-0.03em' }} className="text-primary leading-none">Eduqra</h1>
             <div className="flex items-center gap-2 mt-1">
-              <span className="text-[10px] font-black text-secondary uppercase tracking-[0.15em]">Learning</span>
+              <span style={{ fontSize: '12px', fontWeight: 600, letterSpacing: '1px' }} className="text-secondary uppercase">Learning</span>
               <div className="w-1 h-1 bg-tertiary rounded-full"></div>
-              <span className="text-[10px] font-black text-tertiary uppercase tracking-[0.15em]">Atelier</span>
+              <span style={{ fontSize: '12px', fontWeight: 600, letterSpacing: '1px' }} className="text-tertiary uppercase">Atelier</span>
             </div>
           </div>
         </div>
@@ -84,7 +84,7 @@ export function Sidebar({ currentPage, onPageChange, isOpen, onClose }: SidebarP
                 />
               )}
               <Icon className={cn("w-5 h-5 transition-transform group-hover:scale-110", isActive ? "text-primary" : "text-slate-400 group-hover:text-primary")} />
-              <span className="text-sm font-bold tracking-tight">{item.name}</span>
+              <span style={{ fontSize: '14px', fontWeight: 500 }}>{item.name}</span>
             </button>
           );
         })}

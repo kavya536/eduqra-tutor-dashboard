@@ -23,7 +23,7 @@ export function Pricing({ experience }: PricingProps) {
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex items-center justify-between">
-        <h2 className="text-3xl font-extrabold text-on-surface tracking-tight">Pricing</h2>
+        <h2 className="text-2xl font-black text-on-surface tracking-tight">Pricing</h2>
         {isFresher && (
           <div className="flex items-center gap-2 bg-amber-50 text-amber-700 px-4 py-2 rounded-full border border-amber-200 animate-pulse">
             <Lock className="w-4 h-4" />

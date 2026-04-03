@@ -46,7 +46,7 @@ export function Bookings({ bookings, onStatusChange, onReschedule, onPageChange 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <h2 className="text-3xl font-extrabold text-on-surface tracking-tight">Bookings</h2>
+        <h2 className="text-2xl font-black text-on-surface tracking-tight">Bookings</h2>
         <div className="flex items-center bg-white border border-surface-variant px-4 py-2 rounded-xl w-full max-w-sm shadow-sm focus-within:ring-2 ring-primary transition-all">
           <Search className="w-5 h-5 text-primary mr-3" />
           <input 

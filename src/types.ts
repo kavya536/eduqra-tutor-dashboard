@@ -18,6 +18,7 @@ export interface Message {
   sender: 'me' | 'student';
   text: string;
   time: string;
+  date?: string;
 }
 
 export interface ChatContact {

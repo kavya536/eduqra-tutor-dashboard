@@ -1,9 +1,9 @@
 import { ShieldCheck, Upload, CheckCircle2, AlertCircle, Plus, Trash2, Landmark, DollarSign, ArrowRight, RefreshCw, XCircle, CreditCard, ChevronRight, Lock } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { useState } from 'react';
+import { useState, ReactNode } from 'react';
 import { cn } from '../lib/utils';
 
-const Modal = ({ isOpen, onClose, title, children }: { isOpen: boolean, onClose: () => void, title: string, children: React.ReactNode }) => {
+const Modal = ({ isOpen, onClose, title, children }: { isOpen: boolean, onClose: () => void, title: string, children: ReactNode }) => {
   if (!isOpen) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-primary/40 backdrop-blur-sm">
@@ -77,7 +77,7 @@ export function KYC() {
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <h2 className="text-3xl font-extrabold text-on-surface tracking-tight">KYC & Payments</h2>
+      <h2 className="text-2xl font-black text-on-surface tracking-tight">KYC & Payments</h2>
       
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 max-w-5xl">
         {/* KYC Section */}
@@ -140,7 +140,7 @@ export function KYC() {
               <span className="text-[10px] font-black uppercase tracking-widest text-white/50">Available Earnings</span>
               <DollarSign className="w-5 h-5 text-white/50" />
             </div>
-            <h3 className="text-5xl font-black tracking-tighter mb-6">₹{balance.toFixed(2)}</h3>
+            <h3 className="text-3xl font-black tracking-tight mb-6">₹{balance.toFixed(2)}</h3>
             <button 
               onClick={() => setIsWithdrawModalOpen(true)}
               disabled={balance <= 0}

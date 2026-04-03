@@ -30,7 +30,7 @@ export function Reviews({ reviews }: ReviewsProps) {
           <div className="shrink-0 flex flex-col items-center gap-5 md:border-r md:border-slate-100 md:pr-10">
             {/* Sized-Down Avatar */}
             <div className="relative">
-              <div className="w-20 h-20 md:w-24 md:h-24 rounded-full bg-slate-50 flex items-center justify-center font-black text-primary text-3xl border-4 border-white shadow-xl ring-1 ring-slate-100 italic">
+              <div className="w-20 h-20 md:w-24 md:h-24 rounded-full bg-slate-50 flex items-center justify-center font-black text-primary text-2xl border-4 border-white shadow-xl ring-1 ring-slate-100 italic">
                 AJ
               </div>
               <div className="absolute bottom-1 right-1 w-5 h-5 bg-emerald-500 border-2 border-white rounded-full shadow-lg" />
@@ -65,11 +65,11 @@ export function Reviews({ reviews }: ReviewsProps) {
 
           {/* MIDDLE: Name & Bio (Centralized Focus) */}
           <div className="flex-1 text-center md:text-left flex flex-col items-center md:items-start justify-center">
-            <h2 className="text-4xl md:text-5xl font-black text-on-surface tracking-tighter italic">Alex Johnson</h2>
+            <h2 className="text-2xl font-black text-on-surface tracking-tight italic">Alex Johnson</h2>
             <p className="text-[10px] font-black uppercase tracking-[0.2em] text-primary mt-1 opacity-60">Professional Mathematics & Physics Tutor</p>
             
             <div className="mt-2">
-              <p className="text-on-surface/70 text-lg font-medium leading-relaxed max-w-lg italic">
+              <p className="text-on-surface/70 text-sm font-medium leading-relaxed max-w-lg italic">
                 "Empowering students to master complex concepts through personalized guidance and analytical problem-solving techniques."
               </p>
             </div>
@@ -80,7 +80,7 @@ export function Reviews({ reviews }: ReviewsProps) {
       {/* 3. Students Review Stream */}
       <div className="space-y-6">
         <div className="flex items-center gap-4 px-4 pt-6">
-            <h3 className="text-xl font-black text-on-surface tracking-tight italic">Student Feedback Stream</h3>
+            <h3 className="text-lg font-bold text-on-surface tracking-tight italic">Student Feedback Stream</h3>
             <div className="flex-1 h-px bg-slate-100" />
             <div className="text-[10px] font-black text-on-surface/40 uppercase tracking-widest flex items-center gap-2">
               <Clock size={12} /> Recent First
@@ -102,7 +102,7 @@ export function Reviews({ reviews }: ReviewsProps) {
                     {review.name[0]}
                   </div>
                   <div>
-                    <h5 className="text-lg font-black text-on-surface tracking-tight flex items-center gap-2 italic">
+                    <h5 className="text-sm font-bold text-on-surface tracking-tight flex items-center gap-2 italic">
                       {review.name}
                       <span className="text-[8px] bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full border border-emerald-100 uppercase tracking-widest not-italic">Verified</span>
                     </h5>
@@ -118,7 +118,7 @@ export function Reviews({ reviews }: ReviewsProps) {
                   <span className="text-[9px] font-bold text-on-surface/30">{review.date} • {review.time}</span>
                 </div>
               </div>
-              <p className="text-on-surface text-lg font-medium italic leading-relaxed pl-4 border-l-4 border-primary/10">
+              <p className="text-on-surface text-sm font-medium italic leading-relaxed pl-4 border-l-4 border-primary/10">
                 "{review.text}"
               </p>
             </motion.div>

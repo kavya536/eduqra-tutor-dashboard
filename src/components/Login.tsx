@@ -48,7 +48,7 @@ export function Login({ onLogin, onSwitchToRegister }: LoginProps) {
           transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
           className="text-center mb-6"
         >
-          <h1 className="text-4xl font-black text-on-surface tracking-tighter mb-2 font-display">Welcome Back</h1>
+          <h1 className="text-2xl font-black text-on-surface tracking-tight mb-2">Welcome Back</h1>
           <p className="label-caps opacity-60">Log in to your Eduqra tutor dashboard</p>
         </motion.div>
 

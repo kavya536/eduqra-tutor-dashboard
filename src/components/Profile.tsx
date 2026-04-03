@@ -22,7 +22,7 @@ export function Profile({ onExperienceChange }: ProfileProps) {
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <h2 className="text-3xl font-extrabold text-on-surface tracking-tight">Profile</h2>
+      <h2 className="text-2xl font-black text-on-surface tracking-tight">Profile</h2>
       
       <div className="bg-white p-8 rounded-3xl atelier-card-shadow w-full max-w-3xl border border-surface-variant">
         <div className="flex flex-col sm:flex-row items-center gap-8 mb-10">

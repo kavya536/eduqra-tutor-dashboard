@@ -49,7 +49,7 @@ export function Registration({ onComplete, onSwitchToLogin }: RegistrationProps)
           transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
           className="text-center"
         >
-          <h1 className="text-6xl font-black text-primary tracking-tighter mb-1 drop-shadow-sm font-display">Eduqra</h1>
+          <h1 className="text-4xl font-black text-primary tracking-tight mb-1 drop-shadow-sm">Eduqra</h1>
           <p className="label-caps opacity-60">Global Academic Atelier</p>
         </motion.div>
 
@@ -62,7 +62,7 @@ export function Registration({ onComplete, onSwitchToLogin }: RegistrationProps)
         >
           <div className="relative z-10">
             <div className="mb-8">
-              <h2 className="text-3xl md:text-4xl font-black text-on-surface tracking-tighter mb-2 font-display">Tutor Registration</h2>
+              <h2 className="text-2xl font-black text-on-surface tracking-tight mb-2">Tutor Registration</h2>
               <p className="text-base text-on-surface-variant font-bold opacity-60">Join our specialized teaching network and empower students worldwide.</p>
             </div>
 
@@ -76,7 +76,7 @@ export function Registration({ onComplete, onSwitchToLogin }: RegistrationProps)
                   <div className="w-24 h-24 bg-green-500 rounded-full flex items-center justify-center mb-6 shadow-lg shadow-green-200">
                     <Check className="w-12 h-12 text-white stroke-[4px]" />
                   </div>
-                  <h2 className="text-3xl font-black text-primary mb-2 font-display">Registration Complete!</h2>
+                  <h2 className="text-2xl font-black text-primary mb-2">Registration Complete!</h2>
                   <p className="text-slate-500 font-bold">Welcome to the Eduqra family. Redirecting to your dashboard...</p>
                 </motion.div>
               ) : (
@@ -216,7 +216,7 @@ export function Registration({ onComplete, onSwitchToLogin }: RegistrationProps)
           <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-black/10 rounded-full blur-3xl"></div>
           
           <div className="relative z-10 w-full">
-            <h2 className="text-4xl md:text-5xl font-black mb-12 leading-tight tracking-tighter">Join our elite network of verified tutors today.</h2>
+            <h2 className="text-2xl md:text-3xl font-black mb-8 leading-tight tracking-tight">Join our elite network of verified tutors today.</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {[
                 { title: 'Flexible Remote Hours', icon: Clock, desc: 'Set your own schedule and teach from anywhere in the world.' },
@@ -234,7 +234,7 @@ export function Registration({ onComplete, onSwitchToLogin }: RegistrationProps)
                   <div className="w-16 h-16 bg-white/10 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 group-hover:rotate-6 transition-all border border-white/5 shadow-inner">
                     <perk.icon className="w-8 h-8 text-white" />
                   </div>
-                  <h4 className="font-black text-xl md:text-2xl leading-tight mb-3 uppercase tracking-tighter">{perk.title}</h4>
+                  <h4 className="font-bold text-lg leading-tight mb-2 uppercase tracking-tight">{perk.title}</h4>
                   <p className="text-sm md:text-base font-bold text-white mb-2 leading-relaxed opacity-100">{perk.desc}</p>
                 </motion.div>
               ))}

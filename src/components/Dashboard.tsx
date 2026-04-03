@@ -30,8 +30,8 @@ export function Dashboard({ bookings, onPageChange, onSearch }: DashboardProps) 
         className="flex flex-col lg:flex-row lg:items-center justify-between gap-6"
       >
         <div>
-          <h2 className="text-4xl md:text-5xl font-black text-on-surface tracking-tighter mb-2">Dashboard</h2>
-          <p className="text-sm font-medium text-on-surface-variant/70">Welcome back, Alex. Here's what's happening today.</p>
+          <h2 className="text-2xl font-black text-on-surface tracking-tight mb-1">Dashboard</h2>
+          <p className="font-medium text-on-surface-variant/70">Welcome back, Alex. Here's what's happening today.</p>
         </div>
         
         <div className="flex items-center bg-white/80 backdrop-blur-3xl border border-white/30 px-6 py-4 rounded-3xl w-full lg:max-w-sm shadow-sm focus-within:ring-2 ring-primary/30 transition-all group">
@@ -71,9 +71,10 @@ export function Dashboard({ bookings, onPageChange, onSearch }: DashboardProps) 
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.1, duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
               onClick={() => onPageChange('bookings')}
-              className="bg-white border border-slate-100 p-5 rounded-2xl shadow-sm hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between aspect-[4/3]"
+              className="bg-white border border-slate-100 p-4 rounded-2xl shadow-sm hover:shadow-md transition-all cursor-pointer group flex flex-col gap-3"
             >
-              <div className="flex justify-between items-start">
+              {/* Icon row — sits above everything */}
+              <div className="flex justify-between items-center">
                 <div className={cn(
                   "w-10 h-10 rounded-xl flex items-center justify-center transition-transform group-hover:scale-110",
                   stat.label === 'Total Bookings' ? 'bg-blue-50 text-blue-600' :
@@ -83,16 +84,16 @@ export function Dashboard({ bookings, onPageChange, onSearch }: DashboardProps) 
                 )}>
                   <Icon className="w-5 h-5" />
                 </div>
-                <div className="bg-emerald-50 text-emerald-600 text-[9px] font-bold px-1.5 py-0.5 rounded-md flex items-center gap-0.5 mt-1">
+                <div className="bg-emerald-50 text-emerald-600 px-1.5 py-0.5 rounded-md flex items-center gap-0.5" style={{ fontSize: '10px', fontWeight: 600 }}>
                   ↗ +{12 - i * 2}%
                 </div>
               </div>
 
               <div>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
-                  {stat.label.toUpperCase()}
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
+                  {stat.label}
                 </p>
-                <h3 className="text-2xl font-black text-slate-800 tracking-tight">{stat.value}</h3>
+                <h3 className="text-3xl font-black text-slate-800 tracking-tight">{stat.value}</h3>
               </div>
             </motion.div>
           );
@@ -107,7 +108,7 @@ export function Dashboard({ bookings, onPageChange, onSearch }: DashboardProps) 
         className="bg-white/80 backdrop-blur-3xl p-6 md:p-10 rounded-4xl md:rounded-6xl atelier-card-shadow border border-white/30"
       >
         <div className="flex items-center justify-between mb-6 md:mb-10 border-b border-surface-variant/50 pb-6">
-          <h3 className="text-2xl md:text-3xl font-black tracking-tighter font-display">Upcoming Sessions</h3>
+          <h3 className="text-lg font-bold text-on-surface">Upcoming Sessions</h3>
           <button onClick={() => onPageChange('bookings')} className="label-caps text-primary hover:underline transition-all hover:tracking-tight">View All</button>
         </div>
         <div className="space-y-4 md:space-y-6">
@@ -122,7 +123,7 @@ export function Dashboard({ bookings, onPageChange, onSearch }: DashboardProps) 
               >
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-3 mb-1">
-                    <h4 className="font-black text-lg md:text-xl text-on-surface truncate font-display">{session.name}</h4>
+                    <h4 className="font-bold text-sm text-on-surface truncate">{session.name}</h4>
                     <span className={cn(
                       "px-2 py-0.5 md:px-3 md:py-1 rounded-lg text-[8px] md:text-[10px] font-black uppercase tracking-widest",
                       session.status === 'pending' ? "bg-amber-100 text-amber-600" : "bg-primary/10 text-primary"
@@ -130,7 +131,7 @@ export function Dashboard({ bookings, onPageChange, onSearch }: DashboardProps) 
                       {session.status}
                     </span>
                   </div>
-                  <p className="text-xs md:text-sm text-on-surface-variant font-bold opacity-70 truncate">
+                  <p className="text-xs font-medium text-on-surface-variant/70 truncate">
                     {session.subject} • {session.date}, {session.time}
                   </p>
                 </div>

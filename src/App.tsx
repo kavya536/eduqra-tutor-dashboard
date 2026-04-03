@@ -29,23 +29,23 @@ const INITIAL_CONTACTS: ChatContact[] = [
   { 
     id: 'Emma Wilson', initials: 'EW', online: true, unread: 1,
     messages: [
-      { id: 1, sender: 'student', text: 'Hi! Can we start at 2 today instead of 3?', time: '10:05 AM' },
-      { id: 2, sender: 'me', text: 'Sure, that works for me. See you at 2!', time: '10:08 AM' },
-      { id: 3, sender: 'student', text: 'Thanks for the session!', time: '11:30 AM' },
+      { id: 1, sender: 'student', text: 'Hi! Can we start at 2 today instead of 3?', time: '10:05 AM', date: 'YESTERDAY' },
+      { id: 2, sender: 'me', text: 'Sure, that works for me. See you at 2!', time: '10:08 AM', date: 'YESTERDAY' },
+      { id: 3, sender: 'student', text: 'Thanks for the session!', time: '11:30 AM', date: 'TODAY' },
     ]
   },
   { 
     id: 'Michael Lee', initials: 'ML', online: false, unread: 2,
     messages: [
-      { id: 1, sender: 'student', text: 'Struggling with the calculus assignment. Can we cover it next session?', time: '09:15 AM' },
-      { id: 2, sender: 'student', text: 'Can we reschedule?', time: '09:20 AM' },
+      { id: 1, sender: 'student', text: 'Struggling with the calculus assignment. Can we cover it next session?', time: '09:15 AM', date: 'YESTERDAY' },
+      { id: 2, sender: 'student', text: 'Can we reschedule?', time: '09:20 AM', date: 'TODAY' },
     ]
   },
   { 
     id: 'Sofia Garcia', initials: 'SG', online: true, unread: 0,
     messages: [
-      { id: 1, sender: 'me', text: 'Great progress on statistics today!', time: 'Yesterday' },
-      { id: 2, sender: 'student', text: 'Thank you so much!', time: 'Yesterday' },
+      { id: 1, sender: 'me', text: 'Great progress on statistics today!', time: '04:00 PM', date: 'MARCH 21, 2024' },
+      { id: 2, sender: 'student', text: 'Thank you so much!', time: '04:15 PM', date: 'MARCH 21, 2024' },
     ]
   },
 ];
