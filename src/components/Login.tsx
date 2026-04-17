@@ -1,53 +1,67 @@
-import { Mail, Lock, AlertCircle, ArrowLeft, CheckCircle2 } from 'lucide-react';
-import { useState, FormEvent } from 'react';
+import { Mail, Lock, AlertCircle, ArrowLeft, CheckCircle2, Eye, EyeOff } from 'lucide-react';
+import { useState, FormEvent, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { auth } from '../firebase';
 import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 
 interface LoginProps {
   onLogin: () => void;
   onSwitchToRegister: () => void;
+  onReapply: (email?: string) => void;
 }
 
 const mapAuthError = (code: string) => {
   switch (code) {
-    case 'auth/configuration-not-found':
-      return "The Authentication service is not enabled for this project. Please enable Email/Password login in the Firebase Console.";
-    case 'auth/user-not-found':
+    case 'auth/user-not-found': return "❌ No account found with this email address.";
     case 'auth/wrong-password':
-    case 'auth/invalid-credential':
-      return "Invalid email or password. Please try again.";
-    case 'auth/too-many-requests':
-      return "Too many failed attempts. Try again in a few minutes.";
-    case 'auth/network-request-failed':
-      return "Network connection issue. Please check your internet.";
-    default:
-      return "An error occurred. Please try again or contact support.";
+    case 'auth/invalid-credential': return "❌ Incorrect email or password. Please check your credentials and try again.";
+    case 'auth/too-many-requests': return "⚠️ Too many failed attempts. Please try again later or reset your password.";
+    default: return "⚠️ An unexpected error occurred. Please try again.";
   }
 };
 
-export function Login({ onLogin, onSwitchToRegister }: LoginProps) {
+export function Login({ onLogin, onSwitchToRegister, onReapply }: LoginProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [isSendingReset, setIsSendingReset] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [view, setView] = useState<'login' | 'forgot-password'>('login');
 
+  useEffect(() => {
+    const blockedStatus = (window as any).__blockedTutorStatus;
+    if (blockedStatus) {
+      setError(blockedStatus === 'pending' ? '⏳ Your account is pending admin approval.' : '❌ Your registration was not approved.');
+      (window as any).__blockedTutorStatus = null;
+    }
+  }, []);
+
   const handleLogin = async (e: FormEvent) => {
     e.preventDefault();
     setIsLoggingIn(true);
     setError(null);
-
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      const emailRegex = /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i;
+      if (!emailRegex.test(email)) throw new Error("Please enter a valid email address.");
+      
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const uid = userCredential.user.uid;
+      const userDocSnap = await getDoc(doc(db, 'users', uid));
+      
+      if (userDocSnap.exists()) {
+        const profile = userDocSnap.data();
+        if (profile.status === 'pending' || profile.status === 'rejected') {
+          onLogin();
+          return;
+        }
+      }
       onLogin(); 
     } catch (err: any) {
-      console.error("Login Error:", err);
-      setError(mapAuthError(err.code));
+      setError(mapAuthError(err.code) || err.message);
     } finally {
       setIsLoggingIn(false);
     }
@@ -55,31 +69,28 @@ export function Login({ onLogin, onSwitchToRegister }: LoginProps) {
 
   const handleForgotPassword = async (e: FormEvent) => {
     e.preventDefault();
-    if (!email) {
-      setError("Please enter your email address first.");
-      return;
-    }
-    
-    setIsSendingReset(true);
     setError(null);
     setSuccessMessage(null);
 
+    if (!email || !email.includes('@')) {
+      setError("Please provide a complete email address.");
+      return;
+    }
+    setIsSendingReset(true);
     try {
-      // Check if tutor exists in Firestore first
-      const tutorsRef = collection(db, 'tutors');
-      const q = query(tutorsRef, where("email", "==", email));
-      const querySnapshot = await getDocs(q);
-
-      if (querySnapshot.empty) {
-        setError("No tutor account found with this email address. Please check your spelling or register a new account.");
-        return;
-      }
-
+      // 🚀 AUTOMATION UPGRADE: Using native Firebase recovery (No server needed!)
       await sendPasswordResetEmail(auth, email);
-      setSuccessMessage(`A password reset link has been sent to ${email}`);
+      
+      // Success message as per user's requirement (obfuscated or confirmed)
+      setSuccessMessage("✅ If you have previously registered with this email, a password reset link has been sent to your inbox. Please follow the instructions in the mail.");
     } catch (err: any) {
-      console.error("Reset Error:", err);
-      setError(mapAuthError(err.code));
+      console.error("❌ Reset Error:", err);
+      if (err.code === 'auth/user-not-found') {
+        // Obfuscate success for security as previously requested
+        setSuccessMessage("✅ If you have previously registered with this email, a password reset link has been sent to your inbox.");
+      } else {
+        setError("⚠️ Could not process reset request. Please check the email and try again.");
+      }
     } finally {
       setIsSendingReset(false);
     }
@@ -87,156 +98,82 @@ export function Login({ onLogin, onSwitchToRegister }: LoginProps) {
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4 relative overflow-hidden">
-      {/* Floating Background Elements */}
-      <motion.div 
-        animate={{ 
-          y: [0, -20, 0],
-          rotate: [0, 5, 0]
-        }}
-        transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
-        className="absolute -top-20 -left-20 w-80 h-80 bg-primary/5 rounded-full blur-3xl"
-      />
-      <motion.div 
-        animate={{ 
-          y: [0, 20, 0],
-          rotate: [0, -5, 0]
-        }}
-        transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
-        className="absolute -bottom-40 -right-20 w-[500px] h-[500px] bg-primary/5 rounded-full blur-3xl"
-      />
+      <motion.div animate={{ y: [0, -20, 0], rotate: [0, 5, 0] }} transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }} className="absolute -top-20 -left-20 w-80 h-80 bg-primary/5 rounded-full blur-3xl" />
+      <motion.div animate={{ y: [0, 20, 0], rotate: [0, -5, 0] }} transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }} className="absolute -bottom-40 -right-20 w-[500px] h-[500px] bg-primary/5 rounded-full blur-3xl" />
 
       <div className="w-full max-w-md relative z-10">
-        <motion.div 
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-          className="text-center mb-6"
-        >
+        <div className="text-center mb-6">
           <h1 className="text-2xl font-black text-on-surface tracking-tight mb-2">
-            {view === 'login' ? 'Welcome Back' : 'Reset Password'}
+            {view === 'login' ? 'Welcome Back' : 'Secure Recovery'}
           </h1>
           <p className="label-caps opacity-60">
-            {view === 'login' 
-              ? 'Log in to your Eduqra tutor dashboard' 
-              : 'Enter your email to receive a reset link'}
+            {view === 'login' ? 'Log in to your Eduqra tutor dashboard' : 'Enter email for reset link'}
           </p>
-        </motion.div>
+        </div>
 
-        <motion.div 
-          initial={{ y: 20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ delay: 0.2, duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-          className="bg-white/80 backdrop-blur-3xl p-8 rounded-4xl atelier-card-shadow border border-white/30 space-y-6"
-        >
-          <form onSubmit={view === 'login' ? handleLogin : handleForgotPassword} className="space-y-6">
-            <div className="space-y-2">
-              <label className="label-caps ml-2">Email Address</label>
-              <div className="relative group">
-                <Mail className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-primary transition-colors" />
-                <input 
-                  type="email" 
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="alex.j@eduqra.com" 
-                  className="input-field" 
-                  required
-                />
-              </div>
-            </div>
+        <div className="bg-white/80 backdrop-blur-3xl p-8 rounded-4xl atelier-card-shadow border border-white/30 space-y-6">
+          <form onSubmit={view === 'login' ? handleLogin : handleForgotPassword} className="space-y-6" autoComplete="off">
+            {/* Honeypot fields to trick browser autofill */}
+            <input type="text" name="dummy-email" style={{ display: 'none' }} aria-hidden="true" />
+            <input type="password" name="dummy-password" style={{ display: 'none' }} aria-hidden="true" />
+
+            <AnimatePresence mode="wait">
+              <motion.div key={view} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
+                <div className="space-y-2">
+                  <label className="label-caps ml-2">Email Address</label>
+                  <div className="relative group">
+                    <Mail className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-primary transition-colors" />
+                    <input type="email" name="user-identifier-login" value={email} onChange={(e) => setEmail(e.target.value)} required className="input-field" placeholder="tutor@example.com" autoComplete="off" />
+                  </div>
+                </div>
+                
+                {view === 'login' && (
+                  <div className="space-y-2">
+                    <label className="label-caps ml-2">Password</label>
+                    <div className="relative group">
+                      <Lock className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-primary transition-colors" />
+                      <input type={showPassword ? "text" : "password"} name="user-security-key" value={password} onChange={(e) => setPassword(e.target.value)} required className="input-field pr-12" placeholder="••••••••" autoComplete="new-password" />
+                      <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-primary transition-colors">
+                        {showPassword ? <Eye size={18} /> : <EyeOff size={18} />}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </motion.div>
+            </AnimatePresence>
 
             {view === 'login' && (
-              <div className="space-y-3">
-                <label className="label-caps ml-2">Password</label>
-                <div className="relative group">
-                  <Lock className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-primary transition-colors" />
-                  <input 
-                    type="password" 
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••" 
-                    className="input-field" 
-                    required={view === 'login'}
-                  />
-                </div>
-                <div className="flex justify-end">
-                  <button 
-                    type="button" 
-                    onClick={() => { setView('forgot-password'); setError(null); setSuccessMessage(null); }}
-                    className="text-[11px] font-black text-primary uppercase tracking-widest hover:underline transition-all hover:tracking-tight"
-                  >
-                    Forgot Password?
-                  </button>
-                </div>
+              <div className="flex justify-end">
+                <button type="button" onClick={() => { setView('forgot-password'); setError(null); setSuccessMessage(null); }} className="text-[11px] font-black text-primary uppercase tracking-widest hover:underline transition-all" > Forgot Password? </button>
               </div>
             )}
 
             <AnimatePresence mode="wait">
-              {error && (
-                <motion.div 
-                  key="error"
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="bg-rose-50 border border-rose-200 p-4 rounded-2xl flex items-center gap-3 text-rose-600"
-                >
-                  <AlertCircle className="w-5 h-5 shrink-0" />
-                  <p className="text-[10px] font-bold">{error}</p>
-                </motion.div>
-              )}
-              {successMessage && (
-                <motion.div 
-                  key="success"
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="bg-emerald-50 border border-emerald-200 p-4 rounded-2xl flex items-center gap-3 text-emerald-600"
-                >
-                  <CheckCircle2 className="w-5 h-5 shrink-0" />
-                  <p className="text-[10px] font-bold">{successMessage}</p>
-                </motion.div>
-              )}
+              {error && ( <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-rose-50 border border-rose-200 p-4 rounded-2xl flex items-center gap-3 text-rose-600" > <AlertCircle className="w-5 h-5 shrink-0" /> <p className="text-[10px] font-bold">{error}</p> </motion.div> )}
+              {successMessage && ( <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-emerald-50 border border-emerald-200 p-4 rounded-2xl flex items-center gap-3 text-emerald-600" > <CheckCircle2 className="w-5 h-5 shrink-0" /> <p className="text-[10px] font-bold">{successMessage}</p> </motion.div> )}
             </AnimatePresence>
 
-            <div className="space-y-4">
-              <button 
-                type="submit"
-                disabled={isLoggingIn || isSendingReset}
-                className="w-full btn-primary text-lg py-5 rounded-3xl shadow-2xl shadow-primary/20 hover:shadow-primary/40 tracking-tight disabled:opacity-70 group"
-              >
-                <span className="group-hover:tracking-[0.1em] transition-all duration-300">
-                  {view === 'login' 
-                    ? (isLoggingIn ? 'Signing in...' : 'Sign In') 
-                    : (isSendingReset ? 'Sending Link...' : 'Send Reset Link')}
-                </span>
-              </button>
+            <button type="submit" disabled={isLoggingIn || isSendingReset} className="w-full btn-primary text-lg py-5 rounded-3xl shadow-2xl shadow-primary/20 hover:shadow-primary/40 tracking-tight disabled:opacity-70 group" >
+              <span className="group-hover:tracking-[0.1em] transition-all duration-300">
+                {isLoggingIn ? 'Signing in...' : (isSendingReset ? 'Processing...' : (view === 'login' ? 'Sign In' : 'Send Reset Link'))}
+              </span>
+            </button>
 
-              {view === 'forgot-password' && (
-                <button 
-                  type="button"
-                  onClick={() => { setView('login'); setError(null); setSuccessMessage(null); }}
-                  className="w-full flex items-center justify-center gap-2 text-[11px] font-black text-primary uppercase tracking-widest hover:tracking-tighter transition-all"
-                >
-                  <ArrowLeft size={14} /> Back to Login
-                </button>
-              )}
-
-              {view === 'login' && (
-                <div className="text-center pt-2">
-                  <p className="text-sm font-bold text-on-surface-variant">
-                    Don't have an account?{' '}
-                    <button 
-                      type="button" 
-                      onClick={onSwitchToRegister}
-                      className="text-primary font-black hover:underline transition-all hover:tracking-tight"
-                    >
-                      Sign Up
-                    </button>
-                  </p>
-                </div>
+            <div className="text-center pt-2 space-y-4">
+              {view === 'forgot-password' ? (
+                <button type="button" onClick={() => { setView('login'); setError(null); setSuccessMessage(null); }} className="flex items-center justify-center gap-2 w-full text-[10px] font-black text-primary uppercase tracking-widest transition-all" > <ArrowLeft size={14} /> Back to Sign In </button>
+              ) : (
+                <>
+                  <p className="text-sm font-bold text-on-surface-variant"> Don't have an account? <button type="button" onClick={onSwitchToRegister} className="text-primary font-black hover:underline transition-all">Sign Up</button> </p>
+                  <div className="pt-4 border-t border-slate-100 flex flex-col items-center gap-3">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Previously Rejected?</p>
+                    <button type="button" onClick={() => onReapply(email)} className="text-[11px] font-black text-primary bg-primary/5 hover:bg-primary/10 px-6 py-3 rounded-xl transition-all border border-primary/10 uppercase tracking-widest" > Re-apply </button>
+                  </div>
+                </>
               )}
             </div>
           </form>
-        </motion.div>
+        </div>
       </div>
     </div>
   );

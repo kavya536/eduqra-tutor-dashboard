@@ -1,9 +1,9 @@
-export type BookingStatus = 'pending' | 'confirmed' | 'cancelled';
+export type BookingStatus = 'pending' | 'confirmed' | 'cancelled' | 'completed' | 'rescheduled';
 
 export interface Booking {
-  id: number;
+  id: string | number;
   name: string;
-  status: BookingStatus;
+  status: BookingStatus | 'live' | 'unpaid';
   subject: string;
   date: string;
   time: string;
@@ -11,6 +11,30 @@ export interface Booking {
   message: string;
   studentPhone?: string;
   studentEmail?: string;
+  studentPresent?: boolean;
+  attendance_status?: 'attended' | 'not_attended' | 'pending';
+  studentJoinTime?: any;
+  studentLeaveTime?: any;
+  topic?: string;
+  tutorJoined?: boolean;
+  studentJoined?: boolean;
+  durationConducted?: number; // in minutes
+  completedAt?: any;
+  studentAvatar?: string;
+  isRescheduled?: boolean;
+  isGroup?: boolean;
+  maxParticipants?: number;
+  participantCount?: number;
+  participants?: string[];
+  participantData?: {
+    [email: string]: {
+      name: string;
+      joinTime: any;
+      leaveTime: any;
+      status: 'attended' | 'not_attended' | 'pending';
+    }
+  };
+  startedAt?: any;
 }
 
 export interface Message {
@@ -19,10 +43,18 @@ export interface Message {
   text: string;
   time: string;
   date?: string;
+  deletedForEveryone?: boolean;
+  edited?: boolean;
+  type?: 'text' | 'file' | 'image' | 'poll';
+  pollData?: any;
+  fileUrl?: string;
+  fileName?: string;
+  fileSize?: string;
 }
 
 export interface ChatContact {
   id: string;
+  name?: string;
   initials: string;
   online: boolean;
   unread: number;
@@ -32,6 +64,7 @@ export interface ChatContact {
 export interface AvailabilitySlot {
   id: number;
   day: string;
+  date?: string; // exact date e.g. "2026-04-07"
   start: string;
   end: string;
   booked: boolean;

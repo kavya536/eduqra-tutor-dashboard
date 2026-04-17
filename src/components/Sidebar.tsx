@@ -8,6 +8,7 @@ import {
   Star, 
   ShieldCheck,
   GraduationCap,
+  User,
   X
 } from 'lucide-react';
 import { PageId } from '../types';
@@ -19,7 +20,7 @@ interface SidebarProps {
   onPageChange: (page: PageId) => void;
   isOpen?: boolean;
   onClose?: () => void;
-  user: any;
+  unreadChatCount?: number;
 }
 
 const navItems: { id: PageId; name: string; icon: React.ElementType }[] = [
@@ -30,9 +31,10 @@ const navItems: { id: PageId; name: string; icon: React.ElementType }[] = [
   { id: 'bookings', name: 'Bookings', icon: BookOpen },
   { id: 'reviews', name: 'Reviews', icon: Star },
   { id: 'kyc', name: 'KYC & Pay', icon: ShieldCheck },
+  { id: 'profile', name: 'My Profile', icon: User },
 ];
 
-export function Sidebar({ currentPage, onPageChange, isOpen, onClose, user }: SidebarProps) {
+export function Sidebar({ currentPage, onPageChange, isOpen, onClose, unreadChatCount }: SidebarProps) {
   const content = (
     <aside className={cn(
       "h-screen w-[240px] bg-background border-r border-slate-200 flex flex-col p-5 gap-3 shadow-2xl md:shadow-none",
@@ -84,22 +86,18 @@ export function Sidebar({ currentPage, onPageChange, isOpen, onClose, user }: Si
                 />
               )}
               <Icon className={cn("w-4 h-4 transition-transform group-hover:scale-110", isActive ? "text-primary" : "text-slate-400 group-hover:text-primary")} />
-              <span className="secondary-text !text-sm font-bold">{item.name}</span>
+              <span className="secondary-text !text-sm font-bold flex-1 text-left">{item.name}</span>
+              {item.id === 'chat' && (unreadChatCount || 0) > 0 && (
+                <span className="bg-primary text-white text-[10px] font-black min-w-[18px] h-[18px] flex items-center justify-center rounded-full shadow-lg shadow-primary/20 animate-pulse">
+                  {unreadChatCount}
+                </span>
+              )}
             </button>
           );
         })}
       </nav>
       
       <div className="pt-4 border-t border-slate-100 mt-auto">
-        <div className="flex items-center gap-3 px-2 mb-4">
-          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-black text-sm border border-primary/5">
-            {user?.displayName?.[0] || user?.email?.[0]?.toUpperCase() || 'U'}
-          </div>
-          <div className="flex flex-col min-w-0">
-            <p className="text-sm font-bold text-on-surface truncate">{user?.displayName || 'Tutor'}</p>
-            <p className="text-[10px] font-medium text-on-surface-variant truncate opacity-60">{user?.email}</p>
-          </div>
-        </div>
         <p className="text-[10px] text-on-surface-variant font-black text-center opacity-30 uppercase tracking-[0.2em]">
           © 2026 Eduqra Learning
         </p>

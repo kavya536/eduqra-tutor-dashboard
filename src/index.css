@@ -1,6 +1,36 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Outfit:wght@400;500;600;700;800;900&display=swap');
 @import "tailwindcss";
 
+/* ABSOLUTE INTERACTION RESET (Highest Priority) */
+* {
+  outline: none !important;
+  outline-color: transparent !important;
+  -webkit-tap-highlight-color: transparent !important;
+  box-shadow: none !important;
+  --tw-ring-offset-width: 0px !important;
+  --tw-ring-width: 0px !important;
+  --tw-ring-color: transparent !important;
+  --tw-shadow: 0 0 #0000 !important;
+  --tw-ring-offset-shadow: 0 0 #0000 !important;
+  --tw-ring-shadow: 0 0 #0000 !important;
+}
+
+*:focus, *:active, *:focus-within, *:focus-visible {
+  outline: none !important;
+  outline-width: 0 !important;
+  box-shadow: none !important;
+  border-color: transparent !important;
+  transition: none !important; /* Killer for the 3s ghosting glitch */
+}
+
+/* FIX: Remove browser default password eye icons (prevents double icons) */
+input::-ms-reveal,
+input::-ms-clear,
+input::-webkit-contacts-auto-fill-button,
+input::-webkit-credentials-auto-fill-button {
+  display: none !important;
+}
+
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Outfit", ui-sans-serif, system-ui, sans-serif;
@@ -39,6 +69,11 @@
     radial-gradient(at 0% 0%, rgba(0, 71, 171, 0.05) 0px, transparent 50%),
     radial-gradient(at 100% 0%, rgba(0, 71, 171, 0.04) 0px, transparent 50%);
     background-attachment: fixed;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  button, a, input, select, textarea, div {
+    -webkit-tap-highlight-color: transparent;
   }
   
   h1, .page-title {
@@ -106,13 +141,16 @@
   }
 
   .btn-primary {
-    @apply bg-primary text-white font-semibold px-6 py-3 rounded-xl hover:bg-primary-light hover:-translate-y-1 hover:shadow-xl hover:shadow-primary/20 transition-all active:scale-95 flex items-center justify-center gap-2;
+    @apply bg-primary text-white font-semibold px-6 py-3 rounded-xl hover:bg-primary-light hover:-translate-y-1 hover:shadow-xl hover:shadow-primary/20 transition-all active:scale-95 flex items-center justify-center gap-2 outline-none focus:outline-none focus:ring-0 active:outline-none;
     font-size: var(--font-size-secondary);
   }
 
   .input-field {
-    @apply w-full pl-14 pr-6 py-4 rounded-2xl bg-slate-50 border-none focus:ring-2 ring-primary/50 outline-none font-bold shadow-inner transition-all;
+    @apply w-full pl-14 pr-6 py-4 rounded-2xl bg-slate-50 border-none outline-none font-bold focus:bg-slate-100;
     font-size: var(--font-size-body-ui);
+    box-shadow: none !important;
+    border: none !important;
+    transition: none !important;
   }
 
   .label-caps {
@@ -141,6 +179,19 @@
     @apply uppercase text-on-surface-variant font-extrabold tracking-tight;
     font-size: 10px;
   }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-slate-200 rounded-full border-4 border-transparent bg-clip-content;
 }
 
 /* Custom Scrollbar */

@@ -1,4 +1,4 @@
-import { Send, User, Check, CheckCheck, ChevronLeft, X, Edit2 } from 'lucide-react';
+import { Send, User, Check, CheckCheck, ChevronLeft, X, Edit2, Trash2, Paperclip, FileText, Camera, BarChart2, Plus, Download } from 'lucide-react';
 import { ChatContact } from '../types';
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -8,13 +8,31 @@ interface ChatProps {
   contacts: ChatContact[];
   activeContactId: string | null;
   onContactSelect: (id: string) => void;
-  onSendMessage: (contactId: string, text: string, messageId?: number) => void;
+  onSendMessage: (contactId: string, text: string, messageId?: any) => void;
+  onSpecialMessage: (contactId: string, payload: any) => Promise<void>;
+  onDeleteMessage: (messageId: string, everyone: boolean) => void;
+  onVote: (messageId: string, optionIndex: number) => Promise<void>;
+  profile: any;
 }
 
-export function Chat({ contacts, activeContactId, onContactSelect, onSendMessage }: ChatProps) {
+export function Chat({ 
+  contacts, 
+  activeContactId, 
+  onContactSelect, 
+  onSendMessage, 
+  onSpecialMessage,
+  onDeleteMessage,
+  onVote,
+  profile
+}: ChatProps) {
   const [inputText, setInputText] = useState('');
   const [showMobileChat, setShowMobileChat] = useState(!!activeContactId);
-  const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
+  const [editingMessageId, setEditingMessageId] = useState<any>(null);
+  const [isAttachmentMenuOpen, setIsAttachmentMenuOpen] = useState(false);
+  const [isPollModalOpen, setIsPollModalOpen] = useState(false);
+  const [pollDraft, setPollDraft] = useState({ question: '', options: ['', ''], allowMultiple: true });
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
   const activeContact = contacts.find(c => c.id === activeContactId);
@@ -44,6 +62,27 @@ export function Chat({ contacts, activeContactId, onContactSelect, onSendMessage
       setEditingMessageId(null);
     }
   };
+
+  const handleSendPoll = async () => {
+    if (!activeContactId || !pollDraft.question.trim() || pollDraft.options.filter(o => o.trim()).length < 2) return;
+    await onSpecialMessage(activeContactId, {
+      type: 'poll',
+      pollData: {
+        question: pollDraft.question.trim(),
+        options: pollDraft.options.filter(o => o.trim()),
+        allowMultiple: pollDraft.allowMultiple,
+        votes: {}
+      }
+    });
+    setIsPollModalOpen(false);
+    setPollDraft({ question: '', options: ['', ''], allowMultiple: true });
+  };
+
+  const attachmentOptions = [
+    { icon: FileText, label: 'Document', color: 'bg-indigo-500 text-white' },
+    { icon: Camera, label: 'Camera', color: 'bg-rose-500 text-white' },
+    { icon: BarChart2, label: 'Poll', color: 'bg-amber-500 text-white' },
+  ];
 
   const cancelEdit = () => {
     setEditingMessageId(null);
@@ -101,9 +140,11 @@ export function Chat({ contacts, activeContactId, onContactSelect, onSendMessage
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex justify-between items-center mb-0.5 md:mb-1">
-                    <p className="font-black text-xs md:text-sm truncate text-on-surface">{contact.id}</p>
+                    <p className="font-black text-xs md:text-sm truncate text-on-surface">{contact.name || contact.id}</p>
                     <span className="status-label opacity-60">
-                      {contact.messages[contact.messages.length - 1]?.time || ""}
+                      {contact.messages.length > 0 
+                        ? (contact.messages[contact.messages.length - 1]?.time || "Now") 
+                        : ((contact as any).time || "")}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
@@ -111,7 +152,9 @@ export function Chat({ contacts, activeContactId, onContactSelect, onSendMessage
                       "text-[10px] md:text-xs truncate opacity-70",
                       contact.unread > 0 ? "font-bold text-on-surface" : "font-medium text-on-surface-variant"
                     )}>
-                      {contact.messages[contact.messages.length - 1]?.text || "No messages yet"}
+                      {contact.messages.length > 0 
+                        ? (contact.messages[contact.messages.length - 1]?.text || (contact.messages[contact.messages.length - 1]?.type === 'poll' ? "📊 Poll" : "📎 Document")) 
+                        : ((contact as any).lastMessage || "No messages yet")}
                     </p>
                     {contact.unread > 0 && (
                       <span className="bg-primary text-white text-[8px] md:text-[9px] font-black min-w-[16px] md:min-w-[18px] h-[16px] md:h-[18px] flex items-center justify-center rounded-full shadow-sm">
@@ -132,7 +175,6 @@ export function Chat({ contacts, activeContactId, onContactSelect, onSendMessage
         )}>
           {activeContact ? (
             <>
-              {/* Subtle Modern Dot Pattern */}
               <div className="absolute inset-0 opacity-[0.15] pointer-events-none bg-[radial-gradient(#94a3b8_1px,transparent_1px)] [background-size:24px_24px]"></div>
 
               <div className="p-2 md:p-3 border-b border-surface-variant bg-white flex items-center justify-between shadow-sm relative z-10">
@@ -147,7 +189,7 @@ export function Chat({ contacts, activeContactId, onContactSelect, onSendMessage
                     {activeContact?.initials}
                   </div>
                   <div>
-                    <h4 className="font-black text-sm md:text-lg leading-tight text-on-surface">{activeContact?.id}</h4>
+                    <h4 className="font-black text-sm md:text-lg leading-tight text-on-surface">{activeContact?.name || activeContact?.id}</h4>
                     <div className="flex items-center gap-1.5 mt-0.5">
                       <span className={cn("w-1.5 h-1.5 md:w-2 md:h-2 rounded-full", activeContact?.online ? "bg-green-500 animate-pulse" : "bg-slate-300")}></span>
                       <span className="status-label opacity-60">
@@ -165,53 +207,155 @@ export function Chat({ contacts, activeContactId, onContactSelect, onSendMessage
                     const dateVal = (msg as any).date || 'TODAY';
                     const prevDateVal = i > 0 ? ((activeContact.messages[i-1] as any).date || 'TODAY') : undefined;
                     const showDateSeparator = i === 0 || dateVal !== prevDateVal;
-                    const displayDate = dateVal;
-
+                    
                     return (
                       <React.Fragment key={msg.id}>
                         {showDateSeparator && (
                           <div className="flex justify-center my-4 md:my-6 relative z-10 w-full">
                             <span className="bg-slate-200/60 text-slate-600 text-[9px] md:text-[10px] font-bold px-3 py-1 rounded-lg uppercase tracking-widest backdrop-blur-sm">
-                              {displayDate}
+                              {dateVal}
                             </span>
                           </div>
                         )}
                         <motion.div 
-                          initial={{ opacity: 0, y: 15, scale: 0.9, filter: 'blur(4px)' }}
-                          animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' }}
-                          transition={{ duration: 0.4, ease: "easeOut" }}
+                          initial={{ opacity: 0, y: 15, scale: 0.9 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
                           className={cn(
                             "flex w-full group relative",
                             isMe ? "justify-end" : "justify-start"
                           )}
                         >
-                          {isMe && (
-                            <button 
-                              onClick={() => {
-                                setInputText(msg.text);
-                                setEditingMessageId(msg.id);
-                              }}
-                              className="bg-white/90 p-2 rounded-full shadow-sm mr-2 opacity-0 group-hover:opacity-100 transition-all hover:bg-primary hover:text-white self-center border border-primary/10"
-                              title="Edit message"
-                            >
-                              <Edit2 size={14} />
-                            </button>
-                          )}
-                          <div className={cn(
-                            "max-w-[85%] md:max-w-[70%] px-3 py-2 rounded-2xl shadow-sm relative transition-all w-fit",
-                            isMe 
-                              ? "bg-primary text-white rounded-tr-md shadow-primary/20" 
-                              : "bg-white text-on-surface rounded-tl-md border border-slate-100"
-                          )}>
-                            <p className="text-sm md:text-sm font-bold leading-snug">{msg.text}</p>
+                          <div className="flex flex-col items-end gap-1 max-w-[85%] md:max-w-[70%]">
+                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              {isMe && !msg.deletedForEveryone && (
+                                <button
+                                  onClick={() => {
+                                    setInputText(msg.text);
+                                    setEditingMessageId(msg.id);
+                                  }}
+                                  className="bg-white/90 p-1.5 rounded-full shadow-sm hover:bg-primary hover:text-white border border-primary/10 transition-colors"
+                                >
+                                  <Edit2 size={10} />
+                                </button>
+                              )}
+                              <button
+                                onClick={() => onDeleteMessage(msg.id as any, false)}
+                                className="bg-white/90 p-1.5 rounded-full shadow-sm hover:bg-rose-500 hover:text-white border border-rose-500/10 transition-colors"
+                                title="Delete for me"
+                              >
+                                <X size={10} />
+                              </button>
+                              {isMe && !msg.deletedForEveryone && (
+                                <button
+                                  onClick={() => onDeleteMessage(msg.id as any, true)}
+                                  className="bg-white/90 p-1.5 rounded-full shadow-sm hover:bg-rose-600 hover:text-white border border-rose-600/10 transition-colors text-rose-600"
+                                  title="Delete for everyone"
+                                >
+                                  <Trash2 size={10} />
+                                </button>
+                              )}
+                            </div>
                             <div className={cn(
-                              "flex items-center gap-1.5 mt-1 justify-end",
-                              isMe ? "text-white/80" : "text-on-surface-variant/90"
+                              "px-3 py-2 md:px-4 md:py-3 rounded-2xl shadow-sm relative transition-all w-fit",
+                              isMe ? "bg-primary text-white rounded-tr-none shadow-primary/20" : "bg-white text-on-surface rounded-tl-none border border-slate-100",
+                              msg.deletedForEveryone && "bg-slate-100 text-slate-400 border-none shadow-none"
                             )}>
-                              <span className="status-label !text-[9px] opacity-60">
-                                {msg.time}
-                              </span>
-                              {isMe && <CheckCheck className="w-3 h-3 md:w-4 md:h-4 text-white/90" />}
+                              {msg.type === 'poll' ? (
+                                <div className="min-w-[200px] md:min-w-[250px]">
+                                  <h4 className="font-black text-sm md:text-base mb-3 md:mb-4 flex items-center gap-2">
+                                    <BarChart2 size={16} /> {msg.pollData.question}
+                                  </h4>
+                                  <div className="space-y-1.5 md:space-y-2">
+                                    {msg.pollData.options.map((opt: string, idx: number) => {
+                                      const votes = msg.pollData.votes || {};
+                                      const totalVotes = Object.values(votes).reduce((acc: number, v: any) => acc + (v.includes(idx) ? 1 : 0), 0) as number;
+                                      const emailKey = profile?.id?.replace(/\./g, '_') || '';
+                                      const hasVoted = votes[emailKey]?.includes(idx);
+                                      
+                                      return (
+                                        <button 
+                                          key={idx}
+                                          onClick={() => onVote(msg.id as any, idx)}
+                                          className={cn(
+                                            "w-full text-left p-2 md:p-3 rounded-xl border-2 transition-all relative overflow-hidden group",
+                                            hasVoted 
+                                              ? (isMe ? "bg-white/20 border-white" : "bg-primary/10 border-primary") 
+                                              : (isMe ? "bg-white/10 border-white/20" : "bg-slate-50 border-slate-100 text-slate-600")
+                                          )}
+                                        >
+                                          <div className="flex justify-between items-center relative z-10">
+                                            <span className="text-xs md:text-sm font-bold truncate pr-8">{opt}</span>
+                                            <span className="text-[10px] font-black opacity-60 shrink-0">{totalVotes}</span>
+                                          </div>
+                                          {totalVotes > 0 && (
+                                            <div 
+                                              className={cn("absolute inset-0 opacity-10 transition-all duration-500", isMe ? "bg-white" : "bg-primary")} 
+                                              style={{ width: `${(totalVotes / Math.max(1, Object.keys(votes).length)) * 100}%` }}
+                                            />
+                                          )}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                  <div className="mt-3 flex items-center justify-between opacity-60">
+                                    <span className="text-[9px] font-black uppercase tracking-widest">
+                                      {msg.pollData.allowMultiple ? "Multiple Choice" : "Single Choice"}
+                                    </span>
+                                    <span className="text-[9px] font-black">{Object.keys(msg.pollData.votes || {}).length} participants</span>
+                                  </div>
+                                </div>
+                              ) : msg.type === 'file' ? (
+                                <a 
+                                  href={msg.fileUrl} 
+                                  target="_blank" 
+                                  className={cn(
+                                    "flex items-center gap-3 p-2 md:p-3 rounded-xl border transition-all",
+                                    isMe ? "bg-white/10 border-white/20" : "bg-slate-50 border-slate-100"
+                                  )}
+                                >
+                                  <div className="p-2 bg-primary/20 rounded-lg text-primary">
+                                    <FileText size={18} />
+                                  </div>
+                                  <div className="min-w-0 pr-4">
+                                    <p className="text-xs md:text-sm font-bold truncate max-w-[150px]">{msg.fileName}</p>
+                                    <p className="text-[9px] font-black opacity-40 uppercase tracking-tighter">Document • {msg.fileSize || 'N/A'}</p>
+                                  </div>
+                                </a>
+                              ) : msg.type === 'image' || (msg.type === 'file' && (msg.fileName?.includes('.jpg') || msg.fileName?.includes('.png') || msg.fileName?.includes('.jpeg') || msg.fileName?.includes('.webp'))) ? (
+                                <div className="relative group max-w-[220px] md:max-w-[280px]">
+                                  <img 
+                                    src={msg.fileUrl} 
+                                    alt={msg.fileName}
+                                    className="w-full h-auto rounded-xl object-cover shadow-sm bg-white/50"
+                                  />
+                                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl flex items-center justify-center backdrop-blur-[2px]">
+                                    <a href={msg.fileUrl} target="_blank" download className="bg-white text-black text-[10px] font-black px-4 py-2 rounded-full cursor-pointer hover:scale-105 transition-transform flex items-center gap-2">
+                                      <Download size={14} /> Download
+                                    </a>
+                                  </div>
+                                </div>
+                              ) : (
+                                <p className={cn(
+                                  "text-sm md:text-sm font-bold leading-snug",
+                                  msg.deletedForEveryone && "italic font-normal"
+                                )}>
+                                  {msg.text}
+                                </p>
+                              )}
+                              <div className={cn(
+                                "flex items-center gap-1.5 mt-1 justify-end",
+                                isMe && !msg.deletedForEveryone ? "text-white/80" : "text-on-surface-variant/90"
+                              )}>
+                                {msg.edited && <span className="mr-1 text-[9px] font-medium opacity-60">(edited)</span>}
+                                <span className="status-label !text-[9px] opacity-60 font-medium">{msg.time}</span>
+                                {isMe && !msg.deletedForEveryone && (
+                                  (activeContact as any)?.studentUnreadCount === 0 ? (
+                                    <CheckCheck className="w-3 h-3 md:w-4 md:h-4 text-[#53bdeb]" />
+                                  ) : (
+                                    <CheckCheck className="w-3 h-3 md:w-4 md:h-4 text-white/90" />
+                                  )
+                                )}
+                              </div>
                             </div>
                           </div>
                         </motion.div>
@@ -232,7 +376,91 @@ export function Chat({ contacts, activeContactId, onContactSelect, onSendMessage
                   </div>
                 )}
                 <div className="flex gap-2 md:gap-4 w-full">
+                  <div className="flex items-center gap-2">
+                    <button 
+                      onClick={() => setIsAttachmentMenuOpen(!isAttachmentMenuOpen)}
+                      className="p-3 transition-all rounded-xl text-primary/40 hover:text-primary hover:bg-primary/5"
+                    >
+                      <Paperclip size={20} />
+                    </button>
+                    <AnimatePresence>
+                      {isAttachmentMenuOpen && (
+                        <motion.div 
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: 20 }}
+                          className="absolute bottom-full left-0 mb-4 w-60 bg-white rounded-2xl shadow-xl border border-surface-variant p-2 z-50"
+                        >
+                          <div className="space-y-1">
+                            {attachmentOptions.map((opt) => (
+                              <button 
+                                key={opt.label}
+                                onClick={() => {
+                                  setIsAttachmentMenuOpen(false);
+                                  if (opt.label === 'Document') fileInputRef.current?.click();
+                                  else if (opt.label === 'Camera') cameraInputRef.current?.click();
+                                  else if (opt.label === 'Poll') setIsPollModalOpen(true);
+                                }}
+                                className="w-full flex items-center gap-3 p-2.5 hover:bg-slate-50 rounded-xl transition-all group"
+                              >
+                                <div className={cn("w-8 h-8 rounded-full flex items-center justify-center text-white", opt.color)}>
+                                  <opt.icon size={14} />
+                                </div>
+                                <span className="text-xs font-bold text-on-surface/70 group-hover:text-primary">{opt.label}</span>
+                              </button>
+                            ))}
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+
                   <div className="flex-1 relative">
+                    <input 
+                      type="file" 
+                      ref={fileInputRef} 
+                      className="hidden" 
+                      multiple
+                      onChange={async (e) => {
+                        const files = e.target.files;
+                        if (!files || files.length === 0 || !activeContactId) return;
+                        for (let i = 0; i < files.length; i++) {
+                          const file = files[i];
+                          const reader = new FileReader();
+                          reader.onloadend = async () => {
+                            await onSpecialMessage(activeContactId, {
+                              type: 'file',
+                              fileName: file.name,
+                              fileSize: (file.size / 1024).toFixed(1) + ' KB',
+                              fileUrl: reader.result as string
+                            });
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                    />
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      capture="environment" 
+                      ref={cameraInputRef} 
+                      className="hidden" 
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (file && activeContactId) {
+                          const reader = new FileReader();
+                          reader.onloadend = async () => {
+                            await onSpecialMessage(activeContactId, {
+                              type: 'file',
+                              fileName: 'photo_' + new Date().getTime() + '.jpg',
+                              fileSize: (file.size / 1024).toFixed(1) + ' KB',
+                              fileUrl: reader.result as string
+                            });
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                    />
                     <input 
                       type="text" 
                       value={inputText}
@@ -264,6 +492,108 @@ export function Chat({ contacts, activeContactId, onContactSelect, onSendMessage
           )}
         </div>
       </div>
+
+      <AnimatePresence>
+        {isPollModalOpen && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-md z-[500] flex items-center justify-center p-4"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              className="bg-white rounded-[2rem] w-full max-w-md overflow-hidden shadow-2xl border border-white/20"
+            >
+              <div className="p-6 border-b border-light flex items-center justify-between bg-slate-50/50">
+                <div className="flex items-center gap-2">
+                  <BarChart2 className="text-amber-500" size={20} />
+                  <h3 className="text-lg font-black text-on-surface">Create Poll</h3>
+                </div>
+                <button onClick={() => setIsPollModalOpen(false)} className="p-2 hover:bg-slate-200 rounded-lg">
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Question</label>
+                  <input 
+                    type="text" 
+                    placeholder="Ask something..."
+                    className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 shadow-inner focus:ring-1 ring-primary outline-none font-bold"
+                    value={pollDraft.question}
+                    onChange={(e) => setPollDraft(prev => ({ ...prev, question: e.target.value }))}
+                  />
+                </div>
+
+                <div className="space-y-3">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Options</label>
+                  {pollDraft.options.map((option, idx) => (
+                    <div key={idx} className="flex gap-2 items-center">
+                      <input 
+                        type="text" 
+                        placeholder={`Option ${idx + 1}`}
+                        className="flex-1 bg-slate-50 border-none rounded-xl px-4 py-3 shadow-inner focus:ring-1 ring-primary outline-none text-sm font-semibold"
+                        value={option}
+                        onChange={(e) => {
+                          const newOpts = [...pollDraft.options];
+                          newOpts[idx] = e.target.value;
+                          setPollDraft(prev => ({ ...prev, options: newOpts }));
+                        }}
+                      />
+                      {pollDraft.options.length > 2 && (
+                        <button 
+                          onClick={() => setPollDraft(prev => ({ ...prev, options: prev.options.filter((_, i) => i !== idx) }))}
+                          className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-all"
+                        >
+                          <X size={14} />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  {pollDraft.options.length < 5 && (
+                    <button 
+                      onClick={() => setPollDraft(prev => ({ ...prev, options: [...prev.options, ''] }))}
+                      className="w-full py-3 border-2 border-dashed border-slate-100 rounded-xl text-slate-300 font-bold hover:border-primary/20 hover:text-primary transition-all text-sm"
+                    >
+                      + Add Option
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl">
+                  <p className="text-xs font-bold text-on-surface">Allow multiple answers</p>
+                  <button 
+                    onClick={() => setPollDraft(prev => ({ ...prev, allowMultiple: !prev.allowMultiple }))}
+                    className={cn(
+                      "w-10 h-5 rounded-full transition-all relative",
+                      pollDraft.allowMultiple ? "bg-primary" : "bg-slate-200"
+                    )}
+                  >
+                    <div className={cn(
+                      "absolute top-1 w-3 h-3 bg-white rounded-full transition-all",
+                      pollDraft.allowMultiple ? "left-6" : "left-1"
+                    )} />
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-6 bg-slate-50/50 border-t border-light flex justify-end gap-3">
+                <button onClick={() => setIsPollModalOpen(false)} className="px-4 py-2 text-sm font-bold text-slate-400">Cancel</button>
+                <button 
+                  onClick={handleSendPoll}
+                  disabled={!pollDraft.question.trim() || pollDraft.options.filter(o => o.trim()).length < 2}
+                  className="bg-primary text-white font-black px-6 py-2.5 rounded-xl text-xs uppercase tracking-widest shadow-lg shadow-primary/20 disabled:opacity-50"
+                >
+                  Create & Send
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

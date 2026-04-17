@@ -194,7 +194,7 @@ export function TopBar({ onPageChange, onToggleSidebar, onLogout, notifications,
                 </div>
                 <button onClick={() => { onPageChange('profile'); setIsProfileOpen(false); }}
                   className="w-full text-left px-4 py-2.5 hover:bg-primary/5 text-xs font-bold flex items-center gap-3 transition-colors">
-                  <User className="w-4 h-4 text-primary" /> Profile
+                  <User className="w-4 h-4 text-primary" /> My Profile
                 </button>
                 <button onClick={() => { onPageChange('settings'); setIsProfileOpen(false); }}
                   className="w-full text-left px-4 py-2.5 hover:bg-primary/5 text-xs font-bold flex items-center gap-3 transition-colors">

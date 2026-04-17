@@ -10,8 +10,8 @@ interface PricingProps {
 export function Pricing({ experience }: PricingProps) {
   const [rate, setRate] = useState(experience < 1 ? 0 : 1200);
   const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle');
-  const isPro = experience > 5;
-  const isFresher = experience < 1;
+  const isPro = typeof experience === 'string' ? experience === '5+ Years' : experience > 5;
+  const isFresher = typeof experience === 'string' ? experience === 'Fresher' : experience < 1;
   const isDisabled = isFresher;
 
   const handleSave = () => {
@@ -78,22 +78,44 @@ export function Pricing({ experience }: PricingProps) {
         )}
 
         <div className="space-y-6">
-          <div>
-            <label className="block label-caps mb-3">Class Rate (per hour)</label>
-            <div className="flex items-center gap-4">
-              <span className="text-3xl font-black text-primary">₹</span>
-              <div className="relative w-full sm:w-1/2">
-                <input 
-                  type="number" 
-                  value={rate}
-                  onChange={(e) => setRate(Number(e.target.value))}
-                  className="w-full p-4 rounded-xl text-xl font-black bg-slate-50 border-none focus:ring-2 focus:ring-primary outline-none shadow-inner" 
-                />
-                {isFresher && rate === 0 && (
-                  <div className="absolute right-6 top-1/2 -translate-y-1/2 bg-green-500 text-white px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider">
-                    Free Class
-                  </div>
-                )}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label className="block label-caps mb-3">Class Rate (per hour)</label>
+              <div className="flex items-center gap-4">
+                <span className="text-3xl font-black text-primary">₹</span>
+                <div className="relative w-full">
+                  <input 
+                    type="number" 
+                    value={rate}
+                    onChange={(e) => setRate(Number(e.target.value))}
+                    className="w-full p-4 rounded-xl text-xl font-black bg-slate-50 border-none focus:ring-2 focus:ring-primary outline-none shadow-inner" 
+                  />
+                  {isFresher && rate === 0 && (
+                    <div className="absolute right-6 top-1/2 -translate-y-1/2 bg-green-500 text-white px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider">
+                      Free Class
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <label className="block label-caps mb-3">Monthly Rate (Unlimited)</label>
+              <div className="flex items-center gap-4">
+                <span className="text-3xl font-black text-primary">₹</span>
+                <div className="relative w-full">
+                  <input 
+                    type="number" 
+                    placeholder="e.g. 15000"
+                    disabled={isDisabled}
+                    className="w-full p-4 rounded-xl text-xl font-black bg-slate-50 border-none focus:ring-2 focus:ring-primary outline-none shadow-inner disabled:opacity-50" 
+                  />
+                  {!isDisabled && (
+                    <div className="absolute right-6 top-1/2 -translate-y-1/2 bg-primary/10 text-primary px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider">
+                      Popular
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>

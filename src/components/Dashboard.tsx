@@ -1,20 +1,38 @@
-import { Search, Library, Clock, CheckCircle, XCircle, Plus, Wallet, BookOpen, MessageSquare } from 'lucide-react';
-import { Booking, PageId } from '../types';
-import { motion } from 'motion/react';
+import { Search, Library, Clock, XCircle, Plus, Wallet, BookOpen, MessageSquare, Calendar, Video } from 'lucide-react';
+import { Booking, PageId, AvailabilitySlot } from '../types';
+import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
+import { useState } from 'react';
+import { RescheduleModal } from './RescheduleModal';
 
 interface DashboardProps {
   bookings: Booking[];
   onPageChange: (page: PageId) => void;
   onSearch: (term: string) => void;
+  onRescheduleStart: (id: number) => void;
+  onReschedule?: (id: any, date: string, time: string) => Promise<void>;
+  tutorAvailability?: AvailabilitySlot[];
+  onJoinSession: (id: string) => void;
   user: any;
 }
 
-export function Dashboard({ bookings, onPageChange, onSearch, user }: DashboardProps) {
+export function Dashboard({ bookings, onPageChange, onSearch, onRescheduleStart, onReschedule, tutorAvailability = [], onJoinSession, user }: DashboardProps) {
+  const [rescheduleModalOpen, setRescheduleModalOpen] = useState(false);
+  const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+
+  const handleDashboardReschedule = (session: Booking) => {
+    if (!onReschedule) {
+      onRescheduleStart(Number(session.id));
+      return;
+    }
+    setSelectedBooking(session);
+    setRescheduleModalOpen(true);
+  };
+
   const stats = [
     { label: 'Total Bookings', value: bookings.length, icon: Library, color: 'bg-primary', textColor: 'text-white', filter: 'All' },
     { label: 'Pending', value: bookings.filter(b => b.status === 'pending').length, icon: Clock, color: 'bg-white', textColor: 'text-secondary', filter: 'pending' },
-    { label: 'Confirmed', value: bookings.filter(b => b.status === 'confirmed').length, icon: CheckCircle, color: 'bg-white', textColor: 'text-tertiary', filter: 'confirmed' },
+    { label: 'Conducted', value: bookings.filter(b => b.status === 'completed' && b.tutorJoined && b.studentJoined && b.topic && (b.durationConducted === undefined || b.durationConducted >= 2)).length, icon: Library, color: 'bg-white', textColor: 'text-emerald-500', filter: 'completed' },
     { label: 'Cancelled', value: bookings.filter(b => b.status === 'cancelled').length, icon: XCircle, color: 'bg-white', textColor: 'text-red-500', filter: 'cancelled' },
   ];
 
@@ -62,7 +80,7 @@ export function Dashboard({ bookings, onPageChange, onSearch, user }: DashboardP
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 md:gap-4">
+      <div className="grid grid-cols-4 gap-3">
         {stats.map((stat, i) => {
           const Icon = stat.icon;
           return (
@@ -72,29 +90,29 @@ export function Dashboard({ bookings, onPageChange, onSearch, user }: DashboardP
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.1, duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
               onClick={() => onPageChange('bookings')}
-              className="bg-white border border-slate-100 p-3 rounded-xl shadow-sm hover:shadow-md transition-all cursor-pointer group flex flex-col gap-2"
+              className="bg-white border border-slate-100 p-4 rounded-xl shadow-sm hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between min-h-[110px]"
             >
               {/* Icon row — sits above everything */}
               <div className="flex justify-between items-center">
                 <div className={cn(
-                  "w-10 h-10 rounded-xl flex items-center justify-center transition-transform group-hover:scale-110",
+                  "w-8 h-8 rounded-lg flex items-center justify-center transition-transform group-hover:scale-110",
                   stat.label === 'Total Bookings' ? 'bg-blue-50 text-blue-600' :
                   stat.label === 'Pending' ? 'bg-amber-50 text-amber-600' :
-                  stat.label === 'Confirmed' ? 'bg-emerald-50 text-emerald-600' :
+                  stat.label === 'Conducted' ? 'bg-purple-50 text-purple-600' :
                   'bg-rose-50 text-rose-600'
                 )}>
-                  <Icon className="w-5 h-5" />
+                  <Icon className="w-4 h-4" />
                 </div>
-                <div className="bg-emerald-50 text-emerald-600 px-1.5 py-0.5 rounded-md flex items-center gap-0.5" style={{ fontSize: '10px', fontWeight: 600 }}>
+                <div className="bg-emerald-50 text-emerald-600 px-1 py-0.5 rounded text-[9px] font-semibold">
                   ↗ +{12 - i * 2}%
                 </div>
               </div>
 
               <div>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
+                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
                   {stat.label}
                 </p>
-                <h3 className="text-xl font-black text-slate-800 tracking-tight">{stat.value}</h3>
+                <h3 className="text-lg font-bold text-slate-800 tracking-tight">{stat.value}</h3>
               </div>
             </motion.div>
           );
@@ -122,40 +140,110 @@ export function Dashboard({ bookings, onPageChange, onSearch, user }: DashboardP
                 transition={{ delay: 0.5 + i * 0.05 }}
                 className="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-4 md:pb-6 border-b border-slate-50 last:border-0 gap-4 md:gap-6 hover:bg-slate-50/50 p-3 md:p-4 rounded-3xl transition-all group"
               >
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-3 mb-1">
-                    <h4 className="font-bold text-sm text-on-surface truncate">{session.name}</h4>
-                    <span className={cn(
-                      "px-2 py-0.5 md:px-3 md:py-1 rounded-lg text-[8px] md:text-[10px] font-black uppercase tracking-widest",
-                      session.status === 'pending' ? "bg-amber-100 text-amber-600" : "bg-primary/10 text-primary"
-                    )}>
-                      {session.status}
+                <div className="flex items-center gap-4 flex-1 min-w-0">
+                  <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-primary/5 text-primary flex items-center justify-center font-black text-sm md:text-base shrink-0 border border-primary/10 overflow-hidden">
+                    {session.studentAvatar ? (
+                      <img src={session.studentAvatar} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      (session.name || 'S').substring(0, 2).toUpperCase()
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-3 mb-1.5">
+                      <h4 className="font-extrabold text-base text-on-surface truncate group-hover:text-primary transition-colors">{session.name}</h4>
+                      <span className={cn(
+                        "px-2.5 py-1 rounded-full text-[8px] md:text-[9px] font-black uppercase tracking-widest border",
+                        session.status === 'pending' ? "bg-amber-50 text-amber-600 border-amber-200" : "bg-primary/5 text-primary border-primary/10"
+                      )}>
+                        {session.status}
+                      </span>
+                      {(session as any).type === 'demo' && (
+                        <span className="px-2.5 py-1 rounded-full text-[8px] md:text-[9px] font-black uppercase tracking-widest bg-accent text-white shadow-sm">
+                          Demo Class
+                        </span>
+                      )}
+                    </div>
+                  <div className="flex flex-wrap items-center gap-y-1 gap-x-4 text-[11px] font-bold text-on-surface-variant/60">
+                    <span className="flex items-center gap-1.5 min-w-0">
+                      <Library className="w-3.5 h-3.5 text-primary/40 shrink-0" /> 
+                      <span className="truncate">{session.subject}</span>
+                    </span>
+                    <span className="flex items-center gap-1.5 text-on-surface font-black">
+                      <Calendar className="w-3.5 h-3.5 text-primary/60 shrink-0" /> 
+                      {session.date}
+                    </span>
+                    <span className="flex items-center gap-1.5 text-on-surface/80">
+                      <Clock className="w-3.5 h-3.5 text-primary/40 shrink-0" /> 
+                      {session.time}
                     </span>
                   </div>
-                  <p className="text-xs font-medium text-on-surface-variant/70 truncate">
-                    {session.subject} • {session.date}, {session.time}
-                  </p>
+                  </div>
                 </div>
-                <div className="flex gap-2 md:gap-3 w-full sm:w-auto">
-                  {session.status === 'confirmed' && (
-                    <div className="flex gap-2">
-                      <button 
-                        onClick={() => onPageChange('chat')}
-                        className="flex-1 sm:flex-none bg-primary/5 text-primary text-[10px] md:text-[11px] font-black uppercase tracking-widest px-4 md:px-6 py-2.5 md:py-3 rounded-2xl hover:bg-primary/10 transition-all active:scale-95 flex items-center justify-center gap-2"
-                      >
-                        <MessageSquare className="w-4 h-4" /> Message
-                      </button>
-                      <button 
-                        onClick={() => onPageChange('live-class')}
-                        className="flex-1 sm:flex-none bg-primary text-white text-[10px] md:text-[11px] font-black uppercase tracking-widest px-4 md:px-6 py-2.5 md:py-3 rounded-2xl hover:scale-105 transition-transform active:scale-95 flex items-center justify-center gap-2 shadow-lg shadow-primary/20"
-                      >
-                        <Clock className="w-4 h-4" /> Join Class
-                      </button>
-                    </div>
-                  )}
+                <div className="flex flex-wrap gap-2 md:gap-3 w-full sm:w-auto">
+                  <button 
+                    onClick={() => handleDashboardReschedule(session)}
+                    className="flex-1 sm:flex-none border border-surface-variant text-on-surface text-[10px] md:text-[11px] font-black uppercase tracking-widest px-5 md:px-7 py-2.5 md:py-3 rounded-2xl hover:bg-slate-50 hover:border-primary/30 transition-all active:scale-95 flex items-center justify-center gap-2 group/btn"
+                  >
+                    <Clock className="w-4 h-4 text-primary transition-transform group-hover/btn:rotate-12" /> Reschedule
+                  </button>
+
+                  {(() => {
+                    const isJoinable = () => {
+                      if (session.status !== 'confirmed') return false;
+                      try {
+                        const now = new Date();
+                        const sessionDate = new Date(`${session.date} ${session.time}`);
+                        const diffMins = (sessionDate.getTime() - now.getTime()) / (1000 * 60);
+                        return diffMins <= 10 && diffMins >= -60; // 10 mins before to 60 mins after
+                      } catch (e) {
+                        return false;
+                      }
+                    };
+
+                    if (isJoinable()) {
+                      return (
+                        <button 
+                          onClick={() => onJoinSession(session.id.toString())}
+                          className="flex-1 sm:flex-none bg-primary text-white text-[10px] md:text-[11px] font-black uppercase tracking-widest px-5 md:px-7 py-2.5 md:py-3 rounded-2xl hover:scale-105 transition-all active:scale-95 flex items-center justify-center gap-2 shadow-lg shadow-primary/20 animate-pulse"
+                        >
+                          <Video className="w-4 h-4" /> Join Class
+                        </button>
+                      );
+                    } else if (session.status === 'confirmed') {
+                      try {
+                        const now = new Date();
+                        const todayStr = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                        const isoToday = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+                        const isToday = session.date === todayStr || session.date === isoToday;
+                        const sessionDate = new Date(`${session.date} ${session.time}`);
+                        const diffMins = (sessionDate.getTime() - now.getTime()) / (1000 * 60);
+                        
+                        return (
+                          <button 
+                            disabled
+                            className="flex-1 sm:flex-none bg-primary/10 text-primary/40 text-[10px] md:text-[11px] font-black uppercase tracking-widest px-5 md:px-7 py-2.5 md:py-3 rounded-2xl cursor-not-allowed opacity-50"
+                          >
+                            {isToday && diffMins > 10 ? 'Session Not Started' : `Starts at ${session.time}`}
+                          </button>
+                        );
+                      } catch (e) {
+                         // Fallback
+                      }
+                      return (
+                        <button 
+                          disabled
+                          className="flex-1 sm:flex-none bg-primary/10 text-primary/40 text-[10px] md:text-[11px] font-black uppercase tracking-widest px-5 md:px-7 py-2.5 md:py-3 rounded-2xl cursor-not-allowed opacity-50"
+                        >
+                          Starts at {session.time}
+                        </button>
+                      );
+                    }
+                    return null;
+                  })()}
+                  
                   <button 
                     onClick={() => onPageChange('bookings')}
-                    className="flex-1 sm:flex-none bg-slate-100 text-on-surface text-[10px] md:text-[11px] font-black uppercase tracking-widest px-6 md:px-8 py-2.5 md:py-3 rounded-2xl hover:bg-slate-200 hover:-translate-y-1 transition-all active:scale-95 flex items-center justify-center gap-2 shadow-sm"
+                    className="flex-1 sm:flex-none bg-slate-100 text-on-surface text-[10px] md:text-[11px] font-black uppercase tracking-widest px-6 md:px-8 py-2.5 md:py-3 rounded-2xl hover:bg-slate-200 hover:-translate-y-0.5 transition-all active:scale-95 flex items-center justify-center gap-2 shadow-sm"
                   >
                     Details
                   </button>
@@ -170,6 +258,21 @@ export function Dashboard({ bookings, onPageChange, onSearch, user }: DashboardP
           )}
         </div>
       </motion.div>
+
+      <AnimatePresence>
+        {rescheduleModalOpen && selectedBooking && onReschedule && (
+          <RescheduleModal
+            booking={selectedBooking}
+            allBookings={bookings}
+            availability={tutorAvailability}
+            onClose={() => {
+              setRescheduleModalOpen(false);
+              setSelectedBooking(null);
+            }}
+            onConfirm={onReschedule}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
