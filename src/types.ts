@@ -35,10 +35,30 @@ export interface Booking {
     }
   };
   startedAt?: any;
+  isSubscription?: boolean;
+  subscriptionStatus?: 'active' | 'expired' | 'cancelled';
+  nextBillingDate?: any;
+  studentName?: string;
+  reviewSubmitted?: boolean;
+  reviewRating?: number;
+  reviewComment?: string;
+  amount?: number | string;
+  type?: 'demo' | 'paid';
+  tutorId?: string;
+  studentId?: string;
+  createdAt?: any;
+  paymentId?: string;
+  orderId?: string;
+  paidAt?: any;
+  isJoiningGroup?: boolean;
+  groupId?: string;
+  plan?: string;
+  subjectsPricing?: any;
+  studentType?: string;
 }
 
 export interface Message {
-  id: number;
+  id: string | number;
   sender: 'me' | 'student';
   text: string;
   time: string;
@@ -59,6 +79,8 @@ export interface ChatContact {
   online: boolean;
   unread: number;
   messages: Message[];
+  studentEmail?: string;
+  avatar?: string;
 }
 
 export interface AvailabilitySlot {
@@ -68,19 +90,22 @@ export interface AvailabilitySlot {
   start: string;
   end: string;
   booked: boolean;
+  status?: 'free' | 'busy';
+  type?: string;
 }
 
 export interface Review {
-  id: number;
+  id: string | number;
   name: string;
   subject: string;
   date: string;
   time: string;
   rating: number;
   text: string;
+  studentName?: string;
 }
 
-export type PageId = 'dashboard' | 'chat' | 'availability' | 'pricing' | 'bookings' | 'reviews' | 'kyc' | 'settings' | 'profile' | 'live-class';
+export type PageId = 'dashboard' | 'chat' | 'availability' | 'pricing' | 'bookings' | 'notes' | 'reviews' | 'kyc' | 'settings' | 'profile' | 'live-class';
 
 export type NotificationType = 'booking' | 'message' | 'review';
 

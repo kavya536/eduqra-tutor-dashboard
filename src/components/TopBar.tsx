@@ -1,4 +1,4 @@
-import { Bell, User, Settings, LogOut, ChevronDown, Menu, BookOpen, MessageSquare, Star, Check, CalendarClock } from 'lucide-react';
+import { Bell, User, Settings, LogOut, ChevronDown, Menu, BookOpen, MessageSquare, Star, Check, CalendarClock, AlertCircle } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { PageId, TutorNotification } from '../types';
 import { cn } from '../lib/utils';
@@ -42,6 +42,8 @@ export function TopBar({ onPageChange, onToggleSidebar, onLogout, notifications,
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  const isProfileIncomplete = !user?.upiId || !user?.classPricing;
 
   return (
     <header className="sticky top-0 right-0 w-full z-40 bg-background/80 backdrop-blur-3xl shadow-sm border-b border-surface-variant/50 flex justify-between items-center px-4 md:px-10 py-3 md:py-4 transition-all gap-2 md:gap-4">
@@ -116,7 +118,13 @@ export function TopBar({ onPageChange, onToggleSidebar, onLogout, notifications,
                       <motion.div
                         key={notif.id}
                         layout
-                        onClick={() => onMarkRead(notif.id)}
+                        onClick={() => {
+                          onMarkRead(notif.id);
+                          if (notif.type === 'booking') onPageChange('bookings');
+                          if (notif.type === 'message') onPageChange('chat');
+                          if (notif.type === 'review') onPageChange('reviews');
+                          setIsNotifOpen(false);
+                        }}
                         className={cn(
                           'p-4 cursor-pointer transition-colors group flex items-start gap-3',
                           notif.read ? 'bg-white hover:bg-slate-50' : 'bg-blue-50/40 hover:bg-blue-50/70'
@@ -139,7 +147,15 @@ export function TopBar({ onPageChange, onToggleSidebar, onLogout, notifications,
                           <p className="text-[11px] text-slate-500 font-medium mt-0.5 leading-snug">{notif.description}</p>
                           <div className="flex items-center gap-1.5 mt-1.5">
                             <CalendarClock className="w-3 h-3 text-slate-300" />
-                            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{notif.time}</p>
+                            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                              {(() => {
+                                if (!notif.time) return 'Just now';
+                                if (notif.time.includes('ago') || notif.time === 'Yesterday' || notif.time === 'Now') return notif.time;
+                                const d = new Date(notif.time);
+                                if (isNaN(d.getTime())) return notif.time;
+                                return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+                              })()}
+                            </p>
                           </div>
                         </div>
                       </motion.div>
@@ -162,6 +178,16 @@ export function TopBar({ onPageChange, onToggleSidebar, onLogout, notifications,
           </AnimatePresence>
         </div>
 
+        {isProfileIncomplete && (
+          <button
+            onClick={() => onPageChange('profile')}
+            className="animate-pulse hidden md:flex items-center gap-2 bg-red-50 hover:bg-red-100 text-red-600 px-4 py-2 rounded-xl text-[10px] uppercase font-black tracking-widest transition-colors border border-red-200"
+          >
+            <AlertCircle className="w-4 h-4" />
+            Pricing & UPI Required
+          </button>
+        )}
+
         {/* Profile Dropdown */}
         <div className="relative" ref={profileRef}>
           <button
@@ -174,8 +200,11 @@ export function TopBar({ onPageChange, onToggleSidebar, onLogout, notifications,
               </p>
               <p className="label-caps opacity-60">Verified Tutor</p>
             </div>
-            <div className="w-11 h-11 rounded-2xl bg-primary text-white flex items-center justify-center font-black text-sm shadow-lg shadow-primary/20 group-hover:scale-110 group-hover:rotate-3 transition-all">
+            <div className="relative w-11 h-11 rounded-2xl bg-primary text-white flex items-center justify-center font-black text-sm shadow-lg shadow-primary/20 group-hover:scale-110 group-hover:rotate-3 transition-all">
               {user?.displayName?.[0] || user?.email?.[0]?.toUpperCase() || 'U'}
+              {isProfileIncomplete && (
+                <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-red-500 rounded-full border-[2.5px] border-white z-10 animate-bounce" />
+              )}
             </div>
             <ChevronDown className={cn('w-4 h-4 text-slate-400 transition-transform duration-500', isProfileOpen && 'rotate-180')} />
           </button>

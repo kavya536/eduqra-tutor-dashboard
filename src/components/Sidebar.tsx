@@ -9,7 +9,8 @@ import {
   ShieldCheck,
   GraduationCap,
   User,
-  X
+  X,
+  FileText
 } from 'lucide-react';
 import { PageId } from '../types';
 import { cn } from '../lib/utils';
@@ -29,6 +30,7 @@ const navItems: { id: PageId; name: string; icon: React.ElementType }[] = [
   { id: 'availability', name: 'Availability', icon: CalendarDays },
   { id: 'pricing', name: 'Pricing', icon: Tag },
   { id: 'bookings', name: 'Bookings', icon: BookOpen },
+  { id: 'notes', name: 'Notes', icon: FileText },
   { id: 'reviews', name: 'Reviews', icon: Star },
   { id: 'kyc', name: 'KYC & Pay', icon: ShieldCheck },
   { id: 'profile', name: 'My Profile', icon: User },
@@ -41,7 +43,7 @@ export function Sidebar({ currentPage, onPageChange, isOpen, onClose, unreadChat
       "fixed left-0 top-0 z-50"
     )}>
       <div className="mb-6 px-1 flex items-center justify-between">
-        <div className="flex items-center gap-2 group cursor-pointer" onClick={() => { onPageChange('dashboard'); onClose?.(); }}>
+        <a href="http://localhost:5173" className="flex items-center gap-2 group cursor-pointer">
           <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-lg border border-primary/5 transition-transform group-hover:scale-105 active:scale-95 group-hover:shadow-primary/10 overflow-hidden">
             <img src="/logo.png" alt="Eduqra" className="w-full h-full object-contain" onError={(e) => (e.currentTarget.style.display = 'none')} />
             <span className="text-primary font-black text-xl group-hover:animate-pulse">E</span>
@@ -54,7 +56,7 @@ export function Sidebar({ currentPage, onPageChange, isOpen, onClose, unreadChat
               <span className="status-label !text-[9px] text-tertiary">Atelier</span>
             </div>
           </div>
-        </div>
+        </a>
         <button onClick={onClose} className="md:hidden p-1.5 hover:bg-slate-100 rounded-lg transition-colors">
           <X className="w-5 h-5 text-slate-500" />
         </button>
@@ -62,7 +64,7 @@ export function Sidebar({ currentPage, onPageChange, isOpen, onClose, unreadChat
       
       <p className="px-1 label-caps -mt-5 mb-5 opacity-40 !text-[10px]">Academic Atelier</p>
       
-      <nav className="flex-1 space-y-2 overflow-y-auto pr-2 custom-scrollbar">
+      <nav className="flex-1 space-y-1.5 overflow-visible pr-2">
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = currentPage === item.id;
@@ -72,7 +74,7 @@ export function Sidebar({ currentPage, onPageChange, isOpen, onClose, unreadChat
               key={item.id}
               onClick={() => { onPageChange(item.id); onClose?.(); }}
               className={cn(
-                "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 group relative overflow-hidden",
+                "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-300 group relative overflow-hidden",
                 isActive 
                   ? "text-primary font-black bg-primary/10 shadow-sm" 
                   : "text-slate-500 font-bold hover:text-primary hover:bg-slate-50/50"

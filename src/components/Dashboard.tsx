@@ -1,4 +1,4 @@
-import { Search, Library, Clock, XCircle, Plus, Wallet, BookOpen, MessageSquare, Calendar, Video } from 'lucide-react';
+import { Search, Library, Clock, XCircle, Plus, Wallet, BookOpen, MessageSquare, Calendar, Video, Lock } from 'lucide-react';
 import { Booking, PageId, AvailabilitySlot } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -30,14 +30,21 @@ export function Dashboard({ bookings, onPageChange, onSearch, onRescheduleStart,
   };
 
   const stats = [
-    { label: 'Total Bookings', value: bookings.length, icon: Library, color: 'bg-primary', textColor: 'text-white', filter: 'All' },
+    { label: 'Total Sessions', value: bookings.length, icon: Library, color: 'bg-primary', textColor: 'text-white', filter: 'All' },
     { label: 'Pending', value: bookings.filter(b => b.status === 'pending').length, icon: Clock, color: 'bg-white', textColor: 'text-secondary', filter: 'pending' },
+    { label: 'Confirmed', value: bookings.filter(b => b.status === 'confirmed').length, icon: Calendar, color: 'bg-white', textColor: 'text-primary', filter: 'confirmed' },
     { label: 'Conducted', value: bookings.filter(b => b.status === 'completed' && b.tutorJoined && b.studentJoined && b.topic && (b.durationConducted === undefined || b.durationConducted >= 2)).length, icon: Library, color: 'bg-white', textColor: 'text-emerald-500', filter: 'completed' },
-    { label: 'Cancelled', value: bookings.filter(b => b.status === 'cancelled').length, icon: XCircle, color: 'bg-white', textColor: 'text-red-500', filter: 'cancelled' },
   ];
 
-  const upcomingSessions = bookings
+  const upcomingSessions = [...bookings]
     .filter(b => b.status === 'confirmed' || b.status === 'pending')
+    .sort((a, b) => {
+      try {
+        const timeA = new Date(`${a.date} ${a.time}`).getTime();
+        const timeB = new Date(`${b.date} ${b.time}`).getTime();
+        return timeA - timeB;
+      } catch (e) { return 0; }
+    })
     .slice(0, 5);
 
   return (
@@ -67,7 +74,7 @@ export function Dashboard({ bookings, onPageChange, onSearch, onRescheduleStart,
       </motion.div>
 
       {/* Quick Actions */}
-      <div className="flex flex-wrap gap-3 md:gap-4">
+      <div className="flex flex-wrap gap-4 md:gap-6">
         <button onClick={() => onPageChange('availability')} className="btn-primary text-[10px] md:text-[11px] uppercase tracking-[0.2em] shadow-lg shadow-primary/20 rounded-2xl px-6 md:px-8 py-3 md:py-4 flex-1 sm:flex-none">
           <Plus className="w-4 h-4" /> Availability
         </button>
@@ -80,7 +87,7 @@ export function Dashboard({ bookings, onPageChange, onSearch, onRescheduleStart,
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
         {stats.map((stat, i) => {
           const Icon = stat.icon;
           return (
@@ -93,18 +100,15 @@ export function Dashboard({ bookings, onPageChange, onSearch, onRescheduleStart,
               className="bg-white border border-slate-100 p-4 rounded-xl shadow-sm hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between min-h-[110px]"
             >
               {/* Icon row — sits above everything */}
-              <div className="flex justify-between items-center">
+              <div className="flex justify-between items-center mb-4">
                 <div className={cn(
                   "w-8 h-8 rounded-lg flex items-center justify-center transition-transform group-hover:scale-110",
-                  stat.label === 'Total Bookings' ? 'bg-blue-50 text-blue-600' :
+                  stat.label === 'Total Sessions' ? 'bg-primary/10 text-primary' :
                   stat.label === 'Pending' ? 'bg-amber-50 text-amber-600' :
-                  stat.label === 'Conducted' ? 'bg-purple-50 text-purple-600' :
-                  'bg-rose-50 text-rose-600'
+                  stat.label === 'Confirmed' ? 'bg-blue-50 text-blue-600' :
+                  'bg-emerald-50 text-emerald-600'
                 )}>
                   <Icon className="w-4 h-4" />
-                </div>
-                <div className="bg-emerald-50 text-emerald-600 px-1 py-0.5 rounded text-[9px] font-semibold">
-                  ↗ +{12 - i * 2}%
                 </div>
               </div>
 
@@ -138,7 +142,7 @@ export function Dashboard({ bookings, onPageChange, onSearch, onRescheduleStart,
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.5 + i * 0.05 }}
-                className="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-4 md:pb-6 border-b border-slate-50 last:border-0 gap-4 md:gap-6 hover:bg-slate-50/50 p-3 md:p-4 rounded-3xl transition-all group"
+                className="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-6 md:pb-8 border-b border-slate-50 last:border-0 gap-6 md:gap-10 hover:bg-slate-50/50 p-4 md:p-6 rounded-3xl transition-all group"
               >
                 <div className="flex items-center gap-4 flex-1 min-w-0">
                   <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-primary/5 text-primary flex items-center justify-center font-black text-sm md:text-base shrink-0 border border-primary/10 overflow-hidden">
@@ -179,7 +183,7 @@ export function Dashboard({ bookings, onPageChange, onSearch, onRescheduleStart,
                   </div>
                   </div>
                 </div>
-                <div className="flex flex-wrap gap-2 md:gap-3 w-full sm:w-auto">
+                <div className="flex flex-wrap gap-3 md:gap-4 w-full sm:w-auto">
                   <button 
                     onClick={() => handleDashboardReschedule(session)}
                     className="flex-1 sm:flex-none border border-surface-variant text-on-surface text-[10px] md:text-[11px] font-black uppercase tracking-widest px-5 md:px-7 py-2.5 md:py-3 rounded-2xl hover:bg-slate-50 hover:border-primary/30 transition-all active:scale-95 flex items-center justify-center gap-2 group/btn"
@@ -201,6 +205,33 @@ export function Dashboard({ bookings, onPageChange, onSearch, onRescheduleStart,
                     };
 
                     if (isJoinable()) {
+                      if (session.isSubscription && (session as any).subscriptionStatus === 'expired') {
+                        return (
+                          <div className="flex flex-col gap-2">
+                             <button 
+                                disabled
+                                className="flex-1 sm:flex-none bg-slate-100 text-slate-400 text-[10px] md:text-[11px] font-black uppercase tracking-widest px-5 md:px-7 py-2.5 md:py-3 rounded-2xl cursor-not-allowed opacity-50 border border-slate-200 flex items-center justify-center gap-2"
+                              >
+                                <Lock size={14} /> Payment Pending
+                              </button>
+                              <button 
+                                onClick={async () => {
+                                  if (confirm('Are you sure you want to permanently cancel this expired subscription booking?')) {
+                                    // Logic to update status to cancelled
+                                    try {
+                                      const { doc, updateDoc } = await import('firebase/firestore');
+                                      const { db } = await import('../firebase');
+                                      await updateDoc(doc(db, 'bookings', session.id.toString()), { status: 'cancelled' });
+                                    } catch(e) { console.error(e); }
+                                  }
+                                }}
+                                className="text-[9px] font-black text-rose-500 uppercase tracking-widest hover:text-rose-600 transition-colors flex items-center justify-center gap-1.5"
+                              >
+                                <XCircle size={12} /> Permanently Cancel
+                              </button>
+                          </div>
+                        );
+                      }
                       return (
                         <button 
                           onClick={() => onJoinSession(session.id.toString())}

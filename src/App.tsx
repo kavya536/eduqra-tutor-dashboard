@@ -1,4 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
+import { io } from 'socket.io-client';
+
 import { Sidebar } from './components/Sidebar';
 import { TopBar } from './components/TopBar';
 import { Dashboard } from './components/Dashboard';
@@ -12,69 +14,18 @@ import { Settings } from './components/Settings';
 import { Profile } from './components/Profile';
 import { Registration } from './components/Registration';
 import { Login } from './components/Login';
+import { Notes } from './components/Notes';
 import { Booking, BookingStatus, ChatContact, AvailabilitySlot, Review, PageId, TutorNotification, Message } from './types';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './lib/utils';
-import { GraduationCap, LogOut, X, User, Camera, Mic, MicOff, XCircle, Send, MessageSquare, Smile, Clock, Monitor, ShieldCheck, AlertCircle, Check } from 'lucide-react';
-import { auth, db } from './firebase';
+import { GraduationCap, LogOut, X, User, Camera, Mic, MicOff, XCircle, Send, MessageSquare, Smile, Clock, Monitor, ShieldCheck, AlertCircle, Check, Play } from 'lucide-react';
+import { auth, db, messaging } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
+import { getToken, onMessage } from 'firebase/messaging';
+
 import { doc, getDoc, collection, query, where, getDocs, onSnapshot, updateDoc, serverTimestamp, addDoc, setDoc, orderBy, increment, arrayUnion } from 'firebase/firestore';
 
-const INITIAL_BOOKINGS: Booking[] = [
-  { id: 1, name: 'Alex Johnson', status: 'confirmed', subject: 'Mathematics', date: 'Oct 24, 2026', time: '10:00 AM', duration: '1 Hrs', message: 'Looking forward to reviewing integrals.', studentPhone: '919876543210', studentEmail: 'alex.j@example.com' },
-  { id: 2, name: 'Emma Wilson', status: 'pending', subject: 'Physics', date: 'Oct 24, 2026', time: '2:00 PM', duration: '2 Hrs', message: 'Need help with Kinematics before my test.', studentPhone: '919876543211', studentEmail: 'emma.w@example.com' },
-  { id: 3, name: 'Michael Brown', status: 'pending', subject: 'Calculus', date: 'Oct 25, 2026', time: '11:00 AM', duration: '1.5 Hrs', message: 'Is this time okay for derivatives cover?', studentPhone: '919876543212', studentEmail: 'michael.b@example.com' },
-  { id: 4, name: 'Sofia Garcia', status: 'confirmed', subject: 'Statistics', date: 'Oct 25, 2026', time: '3:00 PM', duration: '1 Hrs', message: "Thanks for accepting! I'll bring the data set.", studentPhone: '919876543213', studentEmail: 'sofia.g@example.com' },
-  { id: 5, name: 'James Lee', status: 'cancelled', subject: 'Mathematics', date: 'Oct 26, 2026', time: '9:00 AM', duration: '2 Hrs', message: 'Sorry, have a conflict.', studentPhone: '919876543214', studentEmail: 'james.l@example.com' }
-];
-
-const INITIAL_CONTACTS: ChatContact[] = [
-  { 
-    id: 'Emma Wilson', initials: 'EW', online: true, unread: 1,
-    messages: [
-      { id: 1, sender: 'student', text: 'Hi! Can we start at 2 today instead of 3?', time: '10:05 AM', date: 'YESTERDAY' },
-      { id: 2, sender: 'me', text: 'Sure, that works for me. See you at 2!', time: '10:08 AM', date: 'YESTERDAY' },
-      { id: 3, sender: 'student', text: 'Thanks for the session!', time: '11:30 AM', date: 'TODAY' },
-    ]
-  },
-  { 
-    id: 'Michael Lee', initials: 'ML', online: false, unread: 2,
-    messages: [
-      { id: 1, sender: 'student', text: 'Struggling with the calculus assignment. Can we cover it next session?', time: '09:15 AM', date: 'YESTERDAY' },
-      { id: 2, sender: 'student', text: 'Can we reschedule?', time: '09:20 AM', date: 'TODAY' },
-    ]
-  },
-  { 
-    id: 'Sofia Garcia', initials: 'SG', online: true, unread: 0,
-    messages: [
-      { id: 1, sender: 'me', text: 'Great progress on statistics today!', time: '04:00 PM', date: 'MARCH 21, 2024' },
-      { id: 2, sender: 'student', text: 'Thank you so much!', time: '04:15 PM', date: 'MARCH 21, 2024' },
-    ]
-  },
-];
-
-const INITIAL_SLOTS: AvailabilitySlot[] = [
-  { id: 1, day: 'Monday', start: '09:00', end: '12:00', booked: false },
-  { id: 2, day: 'Tuesday', start: '14:00', end: '17:00', booked: true },
-  { id: 3, day: 'Wednesday', start: '06:00', end: '08:00', booked: false },
-  { id: 4, day: 'Thursday', start: '18:00', end: '20:00', booked: false },
-  { id: 5, day: 'Friday', start: '10:00', end: '13:00', booked: false },
-];
-
-const INITIAL_REVIEWS: Review[] = [
-  { id: 1, name: 'Sarah Connor', subject: 'Calculus', date: '2026-03-20', time: '07:00 AM', rating: 5, text: 'Amazing tutor! Explained Taylor series perfectly.' },
-  { id: 2, name: 'John Doe', subject: 'Physics', date: '2026-03-18', time: '08:30 AM', rating: 4, text: 'Good session, but ran a bit late.' },
-  { id: 3, name: 'Emily Chen', subject: 'Mathematics', date: '2026-03-15', time: '11:15 AM', rating: 5, text: 'Very patient and understanding!' },
-  { id: 4, name: 'David Miller', subject: 'Statistics', date: '2026-03-20', time: '08:00 AM', rating: 5, text: 'Solved all my probability doubts in one go.' },
-  { id: 5, name: 'Grace Hopper', subject: 'CS', date: '2026-03-21', time: '09:15 AM', rating: 5, text: 'Brilliant insights into algorithm complexity.' }
-];
-
-const INITIAL_NOTIFICATIONS: TutorNotification[] = [
-  { id: 'n1', type: 'booking', title: 'New Booking Request', description: 'Emma Wilson requested Physics on Oct 24 at 2:00 PM', time: '2 hours ago', read: false },
-  { id: 'n2', type: 'booking', title: 'New Booking Request', description: 'Michael Brown requested Calculus on Oct 25 at 11:00 AM', time: '3 hours ago', read: false },
-  { id: 'n3', type: 'message', title: 'New Message', description: 'Michael Lee: "Can we reschedule?"', time: '4 hours ago', read: false },
-  { id: 'n4', type: 'review', title: 'New Review Received', description: 'Grace Hopper left a 5-star review on CS session', time: 'Yesterday', read: true },
-];
+const BOARDS = ['CBSE', 'ICSE', 'IGCSE', 'IB', 'State Board', 'Other'];
 
 export default function App() {
   const parseTimeStr = (t: string) => {
@@ -111,44 +62,82 @@ export default function App() {
       window.history.replaceState({}, '', window.location.pathname);
     }
 
+    if (urlParams.get('view') === 'login') {
+      auth.signOut().then(() => {
+        window.history.replaceState({}, '', window.location.pathname);
+        setView('login');
+      });
+    }
+
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setLoading(true);
       if (firebaseUser) {
         setUser(firebaseUser);
         setProfileLoading(true);
         
-        // 2. Listen to 'tutors' (Pending or Approved)
+        // 2. Listen to 'users' collection (The source of truth for all modern accounts)
         const unsubProfile = onSnapshot(doc(db, 'users', firebaseUser.uid), async (docSnap) => {
           if (docSnap.exists()) {
-            setProfile(docSnap.data());
-            setView('app');
+            const data = docSnap.data();
+            
+            // SECURITY: Blocked status check
+            if (data.status === 'blocked') {
+              setProfile({ id: firebaseUser.uid, ...data });
+              setView('login'); 
+              setProfileLoading(false);
+              setLoading(false);
+              return;
+            }
+
+            // Sync profile data
+            setProfile({ id: docSnap.id, ...data });
+
+            // FLOW CONTROL: 
+            // Avoid jumping to 'app' view if the user is actively registering or reapplying,
+            // UNLESS the status is already 'approved'. This keeps the success/waiting screens visible.
+            if (data.status === 'approved') {
+              setView('app');
+            } else if (view !== 'register' && view !== 'login') {
+              // If we are in 'app' or elsewhere, keep it there to show status screens
+              setView('app');
+            } else {
+              // If we just logged in and profile exists, jump to app view
+              setView('app');
+            }
+
             setProfileLoading(false);
             setLoading(false);
           } else {
-            // AUTO-MIGRATION BRIDGE: 
-            // If not in 'users', check legacy 'tutors' or 'rejectedProfiles'
+            // AUTO-MIGRATION BRIDGE: Check legacy collections if 'users' doc is missing
             try {
               let legacyDoc = null;
-              let isFromLegacy = false;
-
-              // 1. Direct UID Check
               const tutorSnap = await getDoc(doc(db, 'tutors', firebaseUser.uid));
               const rejSnap = !tutorSnap.exists() ? await getDoc(doc(db, 'rejectedProfiles', firebaseUser.uid)) : null;
               
               if (tutorSnap.exists() || (rejSnap?.exists())) {
                 legacyDoc = tutorSnap.exists() ? tutorSnap : rejSnap;
-                isFromLegacy = true;
+                if (legacyDoc.data().status === 'blocked') {
+                  setProfile({ id: firebaseUser.uid, ...legacyDoc.data() });
+                  setView('login');
+                  setProfileLoading(false);
+                  setLoading(false);
+                  return;
+                }
               } else {
-                // 2. Email Fallback Check (Crucial for linking older registrations)
+                // Secondary check: By Email (in case UID changed but email is same)
                 const qUsers = query(collection(db, 'users'), where('email', '==', firebaseUser.email));
                 const userLegacySnap = await getDocs(qUsers);
                 
                 if (!userLegacySnap.empty) {
                    const userDoc = userLegacySnap.docs[0];
-                   console.log("🛠️ Linking existing user record to new UID:", firebaseUser.uid);
                    const userData = userDoc.data();
-                   await setDoc(doc(db, 'users', firebaseUser.uid), { ...userData, id: firebaseUser.uid }, { merge: true });
-                   setProfile({ ...userData, id: firebaseUser.uid });
+                   // Migrate to correct UID
+                   await setDoc(doc(db, 'users', firebaseUser.uid), { 
+                     ...userData, 
+                     id: firebaseUser.uid,
+                     role: 'tutor' // Force role to ensure Admin visibility
+                   }, { merge: true });
+                   setProfile({ ...userData, id: firebaseUser.uid, role: 'tutor' });
                    setView('app');
                    setProfileLoading(false);
                    setLoading(false);
@@ -157,12 +146,11 @@ export default function App() {
               }
 
               if (legacyDoc) {
-                console.log("🛠️ Profile Found (Migration Required). Syncing to unified schema...");
                 const data = legacyDoc.data();
                 const migratedProfile = {
                   ...data,
                   id: firebaseUser.uid,
-                  role: 'tutor',
+                  role: 'tutor', // Ensure role for Admin dashboard query
                   status: (data.status === 'rejected' || legacyDoc.ref.path.includes('rejected')) ? 'rejected' : (data.status || 'pending'),
                   documents: data.documents || {
                     profileImage: data.avatar || data.profileImage || null,
@@ -177,9 +165,10 @@ export default function App() {
                 setProfile(migratedProfile);
                 setView('app');
               } else {
-                // Truly new user with no record anywhere
+                // TRUE NEW USER: Show registration if they just signed up
                 setProfile(null);
-                setView('register');
+                // CRITICAL: Only switch to register if we are NOT already in 'app' (waiting for sync)
+                if (view !== 'register' && view !== 'app') setView('register');
               }
             } catch (err) {
               console.error("Linker check failed:", err);
@@ -194,12 +183,11 @@ export default function App() {
       } else {
         setUser(null);
         setProfile(null);
-        setView('login');
         setLoading(false);
         setProfileLoading(false);
+        setView('login');
       }
     });
-
     return () => unsubscribe();
   }, []); // Only listen once on mount
 
@@ -254,6 +242,8 @@ export default function App() {
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
   const [notifications, setNotifications] = useState<TutorNotification[]>([]);
   const [manualSlots, setManualSlots] = useState<AvailabilitySlot[]>([]);
+  const [studentProfiles, setStudentProfiles] = useState<Record<string, any>>({});
+  const [notes, setNotes] = useState<any[]>([]);
 
   // Keep local availability slots in sync with profile data from Firestore.
   useEffect(() => {
@@ -272,13 +262,23 @@ export default function App() {
           date: slot.date || '',
           start: slot.start || '',
           end: slot.end || '',
-          booked: !!slot.booked
+          booked: !!slot.booked,
+          type: slot.type || 'custom'
         } as AvailabilitySlot;
       })
-      .filter((slot: AvailabilitySlot | null): slot is AvailabilitySlot => !!slot && !!slot.day && !!slot.start && !!slot.end);
+      .filter((slot: AvailabilitySlot | null): slot is AvailabilitySlot => {
+        if (!slot || !slot.day || !slot.start || !slot.end) return false;
+        return true;
+      });
 
     setManualSlots(normalizedSlots);
   }, [profile?.availability]);
+
+  useEffect(() => {
+    if (Object.keys(studentProfiles).length > 0) {
+      console.log(`[DEBUG PROFILES] Identity Cache Updated:`, studentProfiles);
+    }
+  }, [studentProfiles]);
 
   // Handle Real-time Sync
   useEffect(() => {
@@ -287,7 +287,14 @@ export default function App() {
     // 1. Sync Bookings (Classes)
     const bQuery = query(collection(db, 'bookings'), where('tutorId', '==', profile.id));
     const unsubBookings = onSnapshot(bQuery, (snap) => {
-      const bookingList = snap.docs.map(d => ({ id: d.id, ...d.data() } as any));
+      const bookingList = snap.docs.map(d => {
+        const data = d.data();
+        return { 
+          id: d.id, 
+          ...data,
+          name: data.studentName || data.name || 'Student'
+        } as any;
+      });
       // Sort locally to avoid index requirement
       bookingList.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
       setBookings(bookingList);
@@ -300,10 +307,46 @@ export default function App() {
         const chatList = snap.docs.map(d => {
           const data = d.data();
           const existing = prev.find(p => p.id === d.id);
+          const dId = d.id;
+          // 1. IMPROVED EMAIL EXTRACTION
+          let sEmail = (data.studentEmail || '').toLowerCase().trim();
+          if (!sEmail) {
+            // Priority: Find '_at_' then anything before '_tut' (if exists) or the last part
+            if (dId.includes('_at_')) {
+               // Handles: user_name_at_gmail_dot_com_tutorId
+               const parts = dId.split('_at_');
+               const local = parts[0]; 
+               const rest = parts[1].split('_').filter(p => p.includes('com') || p.includes('dot'))[0] || parts[1].split('_')[0];
+               sEmail = `${local}@${rest.replace(/_dot_/g, '.')}`.toLowerCase();
+            } else {
+               // Fallback: assume everything after first underscore is email/ID
+               sEmail = dId.substring(dId.indexOf('_') + 1).toLowerCase();
+            }
+          }
+          
+          console.log(`[DEBUG CHAT] ID: ${dId} | Extracted Email: ${sEmail} | Profile Name in Doc: ${data.studentName}`);
+          
+          // 2. ROBUST IDENTITY LOOKUP: Try multiple variations in the cache
+          const lookup = (email: string) => {
+            if (!email) return null;
+            const norm = email.toLowerCase().trim();
+            return studentProfiles[norm] || 
+                   studentProfiles[norm.replace(/\./g, '_')] || 
+                   studentProfiles[norm.replace(/_/g, '.')];
+          };
+
+          const spr = lookup(sEmail) || lookup(data.studentEmail) || lookup(dId);
+          
+          // 3. RESOLVE NAME & AVATAR: Prioritize profile data over placeholders
+          const resolvedName = (spr?.name && spr.name !== 'Student') ? spr.name : (data.studentName || data.name || "Student");
+          const resolvedAvatar = spr?.avatar || spr?.profileImage || data.studentAvatar || data.avatar || '';
+
           return {
             id: d.id,
-            name: data.studentName || data.studentEmail || 'Student',
-            initials: (data.studentName || 'ST').substring(0, 2).toUpperCase(),
+            studentEmail: sEmail,
+            name: resolvedName,
+            avatar: resolvedAvatar,
+            initials: (resolvedName && resolvedName !== 'Student' && !resolvedName.includes('@') ? resolvedName : 'ST').substring(0, 2).toUpperCase(),
             online: true,
             unread: data.tutorUnreadCount || 0,
             studentUnreadCount: data.studentUnreadCount || 0,
@@ -321,18 +364,141 @@ export default function App() {
     // 3. Sync Notifications
     const nQuery = query(collection(db, 'tutor_notifications'), where('tutorId', '==', profile.id));
     const unsubNotifs = onSnapshot(nQuery, (snap) => {
-      const notifList = snap.docs.map(d => ({ id: d.id, ...d.data() } as any));
-      // Sort by time (assuming it has a timestamp or similar, if not we use ID or createdAt)
-      notifList.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
-      setNotifications(notifList);
+      const allNotifs = snap.docs.map(d => ({ id: d.id, ...d.data() } as any));
+      
+      // Filter based on Tutor Preferences
+      const prefs = profile.notificationPreferences || { reminders: true, messages: true, updates: true };
+      const filtered = allNotifs.filter(n => {
+        if (n.type === 'booking') return prefs.reminders !== false;
+        if (n.type === 'message') return prefs.messages !== false;
+        // Map other types (reviews, platform etc) to updates
+        return prefs.updates !== false;
+      });
+
+      filtered.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+      setNotifications(filtered);
     });
+
+    // 4. Sync Notes
+    const notesQuery = query(collection(db, 'notes'), where('tutorId', '==', profile.id));
+    const unsubNotes = onSnapshot(notesQuery, (snap) => {
+      const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      list.sort((a: any, b: any) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+      setNotes(list);
+    }, (err) => console.error("Notes Sync Error:", err));
 
     return () => {
       unsubBookings();
       unsubChats();
       unsubNotifs();
+      unsubNotes();
     };
-  }, [profile?.id]);
+  }, [profile?.id, studentProfiles]);
+
+  // Fetch student profiles for all relevant emails
+  useEffect(() => {
+    const emailsToFetch = Array.from(new Set([
+      ...bookings.map(b => b.studentEmail),
+      ...contacts.map(c => c.studentEmail)
+    ])).map(e => (e || '').toLowerCase().trim()).filter((e): e is string => !!e && e.includes('@') && !studentProfiles[e]);
+
+    if (emailsToFetch.length === 0) return;
+
+    emailsToFetch.forEach(async (email) => {
+      try {
+        // More robust search: try underscore and dot variations for mixed legacy/unified IDs
+        const variations = [email, email.replace(/\./g, '_'), email.replace(/_/g, '.')];
+        const q = query(collection(db, 'students'), where('email', 'in', Array.from(new Set(variations))));
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          const data = snap.docs[0].data();
+          setStudentProfiles(prev => {
+            const next = { ...prev };
+            // Cache by all variations to avoid redundant fetches
+            variations.forEach(v => { next[v.toLowerCase()] = data; });
+            return next;
+          });
+        }
+      } catch (err) {
+        console.error("Error fetching student profile for", email, err);
+      }
+    });
+  }, [bookings, contacts]);
+
+  // --- Student Name Healing Engine ---
+  // Automatically fetches and syncs student profile names for chats with generic placeholders
+  useEffect(() => {
+    if (!profile?.id || contacts.length === 0) return;
+
+    const listToFix = contacts.filter(c => 
+      !c.name || 
+      c.name === 'Student' || 
+      c.name === 'Unknown' || 
+      c.name.includes('@')
+    );
+
+    if (listToFix.length === 0) return;
+
+    const healNames = async () => {
+      for (const contact of listToFix) {
+        const dId = contact.id;
+        let email = (contact.studentEmail || '').toLowerCase().trim();
+        if (!email && dId.includes('_')) {
+          email = dId.substring(dId.indexOf('_') + 1).toLowerCase().trim();
+        }
+        if (!email || !email.includes('@')) continue;
+
+        try {
+          // Robust multi-variation search
+          const variations = Array.from(new Set([email, email.replace(/\./g, '_'), email.replace(/_/g, '.')]));
+          const q = query(collection(db, 'students'), where('email', 'in', variations));
+          const snap = await getDocs(q);
+          if (!snap.empty) {
+            const profileData = snap.docs[0].data();
+            const profileName = profileData.name;
+            const profileAvatar = profileData.avatar || profileData.profileImage || '';
+            
+            if (profileName && (profileName !== contact.name || profileAvatar !== contact.avatar)) {
+              console.log(`🛠️ Healing student identity for ${email} from profile: ${profileName}`);
+              const chatRef = doc(db, 'whatsapp', contact.id);
+              await updateDoc(chatRef, { 
+                studentName: profileName,
+                studentAvatar: profileAvatar
+              });
+              continue; // Successfully healed
+            }
+          }
+          
+          // --- NEW: SECONDARY HEALING FROM BOOKINGS ---
+          // If no student profile was found (e.g., they booked but didn't complete full registration)
+          // We will forcefully heal their name using their most recent booking record.
+          const bQuery = query(collection(db, 'bookings'), where('studentEmail', 'in', variations));
+          const bSnap = await getDocs(bQuery);
+          if (!bSnap.empty) {
+            // Find the most robust booking name
+            let bestName = 'Student';
+            for (const bDoc of bSnap.docs) {
+               const bData = bDoc.data();
+               const nameToTest = bData.studentName || bData.name;
+               if (nameToTest && nameToTest !== 'Student') {
+                 bestName = nameToTest;
+                 break;
+               }
+            }
+            if (bestName !== 'Student' && bestName !== contact.name) {
+              console.log(`🛠️ Healing student identity for ${email} from booking: ${bestName}`);
+              const chatRef = doc(db, 'whatsapp', contact.id);
+              await updateDoc(chatRef, { studentName: bestName });
+            }
+          }
+        } catch (err) {
+          console.error("Error healing student name for", email, err);
+        }
+      }
+    };
+
+    healNames();
+  }, [contacts, profile?.id]);
 
   // 4. Sync Active Chat Messages
   useEffect(() => {
@@ -346,7 +512,7 @@ export default function App() {
           id: d.id, 
           ...data,
           sender: data.senderId === profile.id ? 'me' : 'student' 
-        };
+        } as unknown as Message;
       }).filter((m: any) => !m.deletedBy?.includes(profile.id)); // Local filter for "Delete for me"
       
       setContacts(prev => prev.map(c => c.id === activeChatId ? { ...c, messages: msgs } : c));
@@ -406,12 +572,64 @@ export default function App() {
       ...payload
     };
 
-    if (payload.editId) {
+    if (payload.messageId) {
       // Logic for editing existing message
-      const msgRef = doc(db, `whatsapp/${chatId}/messages`, payload.editId);
+      const msgRef = doc(db, `whatsapp/${chatId}/messages`, payload.messageId);
       await updateDoc(msgRef, { text: payload.text, edited: true });
     } else {
       await addDoc(msgCol, msg);
+    }
+
+    // Get student email correctly for notification status update
+    const currentContact = contacts.find(c => c.id === contactId);
+    let studentEmail = (currentContact?.studentEmail || '').toLowerCase().trim();
+    if (!studentEmail && contactId.includes('_')) {
+      const parts = contactId.split('_');
+      // If student hub format: emailPart_tutorId
+      if (contactId.includes('_at_')) {
+        const local = parts[0];
+        const rest = parts[1].split('_')[0];
+        studentEmail = `${local}@${rest.replace(/_dot_/g, '.')}`.toLowerCase();
+      } else {
+        studentEmail = contactId.substring(contactId.indexOf('_') + 1).toLowerCase();
+      }
+    }
+      // Heuristic restoration
+      if (studentEmail.includes('@') && !studentProfiles[studentEmail]) {
+        const p = studentEmail.split('@');
+        studentEmail = `${p[0]}@${p[1].replace(/_/g, '.')}`;
+      }
+    
+    // Determine the best name (Profile name > Existing name > Booking name > Fallback)
+    let studentName = 'Student';
+    // Check local student profiles cache first (populated via background effect)
+    const profileFromMap = studentProfiles[studentEmail];
+    
+    if (profileFromMap?.name && profileFromMap.name !== 'Student') {
+      studentName = profileFromMap.name;
+    } else {
+      // Fallback to existing contact state
+      const existingContact = contacts.find(c => c.id === chatId || c.id === contactId);
+      if (existingContact?.name && existingContact.name !== 'Student' && !existingContact.name.includes('@')) {
+        studentName = existingContact.name;
+      } else {
+        // Fallback to bookings
+        const b = bookings.find(b => b.studentEmail === studentEmail);
+        if (b?.name && b.name !== 'Student') {
+          studentName = b.name;
+        }
+        
+        // Try fetching directly as a last resort
+        try {
+          const studentQuery = query(collection(db, 'students'), where('email', '==', studentEmail));
+          const studentSnap = await getDocs(studentQuery);
+          if (!studentSnap.empty) {
+            studentName = studentSnap.docs[0].data().name || studentName;
+          }
+        } catch (err) {
+          console.error("Critical error fetching student profile name:", err);
+        }
+      }
     }
 
     // Always keep chat document metadata in sync
@@ -419,19 +637,32 @@ export default function App() {
       lastMessage: payload.text || (payload.type === 'poll' ? '📊 Poll' : '📎 Attachment'),
       lastMessageTime: now.toISOString(),
       timestamp: serverTimestamp(),
-      studentUnreadCount: payload.editId ? increment(0) : increment(1),
+      studentUnreadCount: payload.messageId ? increment(0) : increment(1),
       tutorId: profile.id,
       tutorName: profile.name,
       tutorAvatar: profile.avatar || '',
-      studentEmail: contactId.includes('_') ? contactId.split(/_(.+)/)[1].replace(/_/g, '.') : contactId,
-      studentName: bookings.find(b => b.studentEmail === (contactId.includes('_') ? contactId.split(/_(.+)/)[1].replace(/_/g, '.') : contactId))?.name || 'Student'
+      studentEmail: studentEmail,
+      studentName: studentName
     }, { merge: true });
+
+    // 4. Notify Student of new message
+    if (studentEmail && !payload.messageId) {
+      await addDoc(collection(db, 'notifications'), {
+        studentEmail: studentEmail,
+        type: 'message',
+        title: `New Message from ${profile.name}`,
+        message: payload.text || 'Sent an attachment',
+        time: now.toISOString(),
+        read: false,
+        link: 'chat'
+      });
+    }
   };
 
-  const handleSendMessage = async (contactId: string, text: string, editId?: any) => {
+  const handleSendMessage = async (contactId: string, text: string, messageId?: any) => {
     if (!text.trim() || !contactId) return;
-    if (editId) {
-      await baseSendMessage(contactId, { text: text.trim(), editId });
+    if (messageId) {
+      await baseSendMessage(contactId, { text: text.trim(), messageId });
     } else {
       await baseSendMessage(contactId, { text: text.trim() });
     }
@@ -484,7 +715,18 @@ export default function App() {
     const chatId = `${profile.id}_${booking.studentEmail.replace(/\./g, '_')}`;
     const chatRef = doc(db, 'whatsapp', chatId);
     
-    // Proactively initialize the chat document in 'whatsapp' if it's the first interaction
+    // Ensure we have the latest student name from profile if possible
+    let studentName = booking.name || (booking as any).studentName || 'Student';
+    try {
+      const q = query(collection(db, 'students'), where('email', '==', booking.studentEmail));
+      const snap = await getDocs(q);
+      if (!snap.empty) {
+        studentName = snap.docs[0].data().name || studentName;
+      }
+    } catch (e) {
+      console.error("Error fetching student profile during chat initialization:", e);
+    }
+
     const chatSnap = await getDoc(chatRef);
     if (!chatSnap.exists()) {
       const initialMsg = 'Hello! How can I help you today?';
@@ -493,7 +735,7 @@ export default function App() {
         tutorName: profile.name,
         tutorAvatar: profile.avatar || '',
         studentEmail: booking.studentEmail,
-        studentName: booking.name || (booking as any).studentName || 'Student',
+        studentName: studentName,
         studentAvatar: '',
         lastMessage: initialMsg,
         lastMessageTime: new Date().toISOString(),
@@ -542,7 +784,47 @@ export default function App() {
   const detectionIntervalRef = useRef<any>(null);
 
 
+  const socketRef = useRef<any>(null);
+  const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
+  const remoteVideoRef = useRef<HTMLVideoElement>(null);
+
+  // --- Push Notification Registration ---
+  useEffect(() => {
+    const setupNotifications = async () => {
+      if (!messaging || !profile?.id) return;
+
+      try {
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') {
+          const token = await getToken(messaging, { 
+            vapidKey: 'BGFS0hv59YGe6BMn5-wcbjlBLu0jw5Gd_zBsVZPPFX-16YOYB92_9qbaIp_SyUE4DeG7HH9-suupaEveV6vIrj4'
+          });
+          
+          if (token) {
+            console.log('FCM Token generated for Tutor');
+            const tutorRef = doc(db, 'users', profile.id);
+            await updateDoc(tutorRef, {
+              fcmTokens: arrayUnion(token)
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Push notification setup failed:', error);
+      }
+    };
+
+    if (profile && profile.notificationPreferences?.push !== false) {
+      setupNotifications();
+      const unsubscribe = onMessage(messaging!, (payload) => {
+        console.log('Foregound message received:', payload);
+      });
+      return () => unsubscribe();
+    }
+  }, [profile]);
+
+
   // --- Real-time Attendance & Global Status Engine ---
+
   useEffect(() => {
     if (!profile?.id || !bookings.length) return;
 
@@ -661,8 +943,9 @@ export default function App() {
     let stream: MediaStream | null = null;
     const startCamera = async () => {
       try {
-        if (isCamOn && currentPage === 'live-class' && sessionStatus === 'live') {
+        if (isCamOn && currentPage === 'live-class' && sessionStatus !== 'disconnected') {
           stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: isMicOn });
+          streamRef.current = stream;
           if (localVideoRef.current) {
             localVideoRef.current.srcObject = stream;
           }
@@ -738,6 +1021,65 @@ export default function App() {
       setLiveMessages(msgs);
     });
 
+
+    // Socket.IO WebRTC Signaling Setup
+    socketRef.current = io('http://localhost:5001');
+    socketRef.current.emit('join-room', bookingId);
+
+    const configuration = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+    
+    const initPeerConnection = () => {
+      const pc = new RTCPeerConnection(configuration);
+      
+      pc.onicecandidate = (event) => {
+        if (event.candidate) {
+          socketRef.current.emit('ice-candidate', { candidate: event.candidate, roomId: bookingId });
+        }
+      };
+
+      pc.ontrack = (event) => {
+        if (remoteVideoRef.current) {
+          remoteVideoRef.current.srcObject = event.streams[0];
+        }
+      };
+
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => pc.addTrack(track, streamRef.current!));
+      }
+
+      peerConnectionRef.current = pc;
+      return pc;
+    };
+
+    socketRef.current.on('user-connected', async () => {
+      const pc = initPeerConnection();
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      socketRef.current.emit('offer', { offer, roomId: bookingId });
+    });
+
+    socketRef.current.on('offer', async (offer: any) => {
+      const pc = initPeerConnection();
+      await pc.setRemoteDescription(new RTCSessionDescription(offer));
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      socketRef.current.emit('answer', { answer, roomId: bookingId });
+    });
+
+    socketRef.current.on('answer', async (answer: any) => {
+      if (peerConnectionRef.current) {
+        await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(answer));
+      }
+    });
+
+    socketRef.current.on('ice-candidate', async (candidate: any) => {
+      if (peerConnectionRef.current) {
+        try {
+          await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(candidate));
+        } catch (e) { console.error("Error adding ice candidate", e); }
+      }
+    });
+
     const startVoiceDetection = (stream: MediaStream) => {
       try {
         const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -779,19 +1121,19 @@ export default function App() {
     };
 
     setTimeout(async () => {
-      setSessionStatus('live');
-      
+      // We join the room, but we don't set 'live' status yet if it's the first time
       const bSnap = await getDoc(bookingRef);
       if (bSnap.exists()) {
         const bData = bSnap.data();
         if (bData.startedAt) {
           setSessionStartTime(bData.startedAt.toDate());
+          setSessionStatus('live');
         } else {
-          setSessionStartTime(new Date());
+          setSessionStatus('waiting'); // Wait for tutor to click "Start"
         }
       }
       
-      // Start voice detection
+      // Start voice detection (always on when in room)
       try {
         const aStream = await navigator.mediaDevices.getUserMedia({ audio: true });
         streamRef.current = aStream;
@@ -814,14 +1156,43 @@ export default function App() {
     const bookingId = activeMeetingId;
     if (!bookingId) return;
 
-    if (!showTopicModal && !sessionTopic) {
-      setShowTopicModal(true);
-      return;
-    }
-
-    const finalTopic = sessionTopic.trim() || bookings.find(b => b.id.toString() === bookingId)?.subject || 'Class Session';
-
     try {
+      const bookingDoc = doc(db, 'bookings', bookingId);
+      const snap = await getDoc(bookingDoc);
+      if (!snap.exists()) return;
+      const bookingData = snap.data() as any;
+
+      const isVoiceSuccess = talkingTimeRef.current >= 840; // 14 mins
+      let durationMins = 0;
+      if (sessionStartTime) {
+        durationMins = Math.floor((new Date().getTime() - sessionStartTime.getTime()) / 60000);
+      }
+
+      // Check if student was present and stayed for at least 12 mins
+      let studentValid = false;
+      if (bookingData.isGroup && bookingData.participantData) {
+        studentValid = Object.values(bookingData.participantData).some((p: any) => {
+          if (!p.joinTime) return false;
+          const stay = Math.floor((new Date().getTime() - p.joinTime.toDate().getTime()) / 60000);
+          return stay >= 12;
+        });
+      } else {
+        const sJoin = bookingData.studentJoinTime?.toDate();
+        const sStay = sJoin ? Math.floor((new Date().getTime() - sJoin.getTime()) / 60000) : 0;
+        studentValid = bookingData.studentPresent && sStay >= 12;
+      }
+
+      // Validity Criteria: 14+ mins total, 14+ mins talking, student present 12+ mins
+      const isValidClass = durationMins >= 14 && isVoiceSuccess && studentValid;
+
+      // Only ask for topic if the class was valid
+      if (isValidClass && !showTopicModal && !sessionTopic) {
+        setShowTopicModal(true);
+        return;
+      }
+
+      const finalTopic = sessionTopic.trim() || bookingData.subject || 'Class Session';
+
       const sessionRef = doc(db, 'live_sessions', bookingId);
       await updateDoc(sessionRef, {
         tutorJoined: false,
@@ -829,56 +1200,43 @@ export default function App() {
         endTime: serverTimestamp()
       });
 
-      // Also mark the specific booking as completed and finalize attendance
-      const bookingDoc = doc(db, 'bookings', bookingId);
-      const snap = await getDoc(bookingDoc);
-      
-      if (snap.exists()) {
-        const bookingData = snap.data() as Booking;
-        const isVoiceSuccess = talkingTimeRef.current >= 840; // 14 mins
-        
-        let durationMins = 0;
-        if (sessionStartTime) {
-          durationMins = Math.floor((new Date().getTime() - sessionStartTime.getTime()) / 60000);
-        }
+      const updates: any = { 
+        status: 'completed',
+        topic: isValidClass ? finalTopic : (bookingData.topic || ''), // Don't overwrite if invalid
+        durationConducted: durationMins,
+        talkingTime: talkingTimeRef.current,
+        completedAt: serverTimestamp(),
+        attendance_status: isValidClass ? 'attended' : 'not_attended'
+      };
 
-        const updates: any = { 
-          status: 'completed',
-          topic: finalTopic,
-          durationConducted: durationMins,
-          talkingTime: talkingTimeRef.current,
-          completedAt: serverTimestamp()
-        };
-
-        if (bookingData.isGroup && bookingData.participantData) {
-          // Process attendance for each participant in the group
-          const updatedParticipantData = { ...bookingData.participantData };
-          Object.keys(updatedParticipantData).forEach(emailKey => {
-            const p = updatedParticipantData[emailKey];
-            if (p.joinTime) {
-              const joinTime = p.joinTime.toDate();
-              const stayDuration = Math.floor((new Date().getTime() - joinTime.getTime()) / 60000);
-              // Student must stay 12 mins AND Tutor must talk 14 mins
-              updatedParticipantData[emailKey].status = (stayDuration >= 12 && isVoiceSuccess) ? 'attended' : 'not_attended';
-            }
-          });
-          updates.participantData = updatedParticipantData;
-          updates.attendance_status = isVoiceSuccess ? 'attended' : 'not_attended'; // Overall session status
-        } else {
-          // 1-on-1 logic
-          const studentJoinTime = bookingData.studentJoinTime?.toDate();
-          const studentStayDuration = studentJoinTime ? Math.floor((new Date().getTime() - studentJoinTime.getTime()) / 60000) : 0;
-          
-          updates.attendance_status = (bookingData?.studentPresent && isVoiceSuccess && studentStayDuration >= 12) ? 'attended' : 'not_attended';
-        }
-
-        await updateDoc(bookingDoc, updates);
+      if (bookingData.isGroup && bookingData.participantData) {
+        const updatedParticipantData = { ...bookingData.participantData };
+        Object.keys(updatedParticipantData).forEach(emailKey => {
+          const p = updatedParticipantData[emailKey];
+          if (p.joinTime) {
+            const stay = Math.floor((new Date().getTime() - p.joinTime.toDate().getTime()) / 60000);
+            updatedParticipantData[emailKey].status = (stay >= 12 && isVoiceSuccess && durationMins >= 14) ? 'attended' : 'not_attended';
+          }
+        });
+        updates.participantData = updatedParticipantData;
       }
+
+      await updateDoc(bookingDoc, updates);
     } catch (e) {
       console.error("Error finalizing class:", e);
     }
 
+    if (socketRef.current) {
+      socketRef.current.disconnect();
+      socketRef.current = null;
+    }
+    if (peerConnectionRef.current) {
+      peerConnectionRef.current.close();
+      peerConnectionRef.current = null;
+    }
+
     setShowTopicModal(false);
+
     setSessionTopic('');
     setSessionStatus('disconnected');
     setSessionStartTime(null);
@@ -908,7 +1266,7 @@ export default function App() {
     });
   };
 
-  useState(() => {
+  useEffect(() => {
     const interval = setInterval(() => {
       if (sessionStatus === 'live' && sessionStartTime) {
         const diff = Math.floor((new Date().getTime() - sessionStartTime.getTime()) / 1000);
@@ -919,7 +1277,7 @@ export default function App() {
       }
     }, 1000);
     return () => clearInterval(interval);
-  });
+  }, [sessionStatus, sessionStartTime]);
 
 
   const handleMarkAllRead = () => {
@@ -950,12 +1308,29 @@ export default function App() {
       setBookings(prev => prev.map(b => b.id === id ? { ...b, status } : b));
       
       const booking = bookings.find(b => b.id === id);
-      if (booking && status === 'confirmed') {
-        addNotification({
-          type: 'booking',
-          title: 'Booking Confirmed',
-          description: `${booking.name || 'Student'}'s ${booking.subject || 'Session'} confirmed.`,
-        });
+      if (booking) {
+        if (status === 'confirmed') {
+          addNotification({
+            type: 'booking',
+            title: 'Booking Confirmed',
+            description: `${booking.name || 'Student'}'s ${booking.subject || 'Session'} confirmed.`,
+          });
+        }
+
+        // 3. Notify Student Page
+        if (booking.studentEmail) {
+          await addDoc(collection(db, 'notifications'), {
+            studentEmail: booking.studentEmail,
+            type: 'booking',
+            title: status === 'confirmed' ? 'Session Confirmed! ✅' : 'Session Cancelled ❌',
+            message: status === 'confirmed' 
+              ? `${profile?.name || 'Your tutor'} confirmed your ${booking.subject} session for ${booking.date} at ${booking.time}.${booking.amount ? ` (Amount: ₹${booking.amount})` : ''}`
+              : `${profile?.name || 'Your tutor'} cancelled your ${booking.subject} session. Contact support for details.`,
+            time: new Date().toISOString(),
+            read: false,
+            link: 'my-bookings'
+          });
+        }
       }
     } catch (error) {
       console.error("Error updating booking status:", error);
@@ -963,27 +1338,35 @@ export default function App() {
     }
   };
 
-
-
   const handleAddSlot = (slot: Omit<AvailabilitySlot, 'id'>) => {
-    const newSlots = [...manualSlots, { ...slot, id: Date.now(), booked: false }];
+    const newSlots = [...manualSlots, { ...slot, id: Date.now() }];
     setManualSlots(newSlots);
-    
-    // Sync to Firestore profile
     if (profile?.id) {
-      const profileRef = doc(db, 'users', profile.id);
-      updateDoc(profileRef, { availability: newSlots });
+      updateDoc(doc(db, 'users', profile.id), { availability: newSlots });
+    }
+  };
+
+  const handleBatchAddSlots = (slotsToApply: Omit<AvailabilitySlot, 'id'>[]) => {
+    const slotsWithIds = slotsToApply.map((s, i) => ({ ...s, id: Date.now() + i }));
+    const newSlots = [...manualSlots, ...slotsWithIds];
+    setManualSlots(newSlots);
+    if (profile?.id) {
+      updateDoc(doc(db, 'users', profile.id), { availability: newSlots });
+    }
+  };
+
+  const handleClearSlots = () => {
+    setManualSlots([]);
+    if (profile?.id) {
+      updateDoc(doc(db, 'users', profile.id), { availability: [] });
     }
   };
 
   const handleDeleteSlot = (id: number) => {
     const newSlots = manualSlots.filter(s => s.id !== id);
     setManualSlots(newSlots);
-    
-    // Sync to Firestore profile
     if (profile?.id) {
-      const profileRef = doc(db, 'users', profile.id);
-      updateDoc(profileRef, { availability: newSlots });
+      updateDoc(doc(db, 'users', profile.id), { availability: newSlots });
     }
   };
 
@@ -1013,6 +1396,8 @@ export default function App() {
         completedAt: null
       });
 
+      const booking = bookings.find(b => b.id === id);
+
       setBookings(prev => prev.map(b => b.id === id ? { 
         ...b, 
         date, 
@@ -1031,6 +1416,19 @@ export default function App() {
         title: 'Session Rescheduled',
         description: `You've successfully rescheduled the session. Student has been notified.`,
       });
+
+      // Notify Student of Reschedule
+      if (booking && booking.studentEmail) {
+        await addDoc(collection(db, 'notifications'), {
+          studentEmail: booking.studentEmail,
+          type: 'booking',
+          title: 'Session Rescheduled 📅',
+          message: `Your ${booking.subject} session with ${profile?.name || 'your tutor'} has been moved to ${date} at ${time}.${booking.amount ? ` (Paid: ₹${booking.amount})` : ''}`,
+          time: new Date().toISOString(),
+          read: false,
+          link: 'my-bookings'
+        });
+      }
     } catch (e) {
       console.error("Reschedule error:", e);
       alert("Failed to reschedule session.");
@@ -1069,16 +1467,51 @@ export default function App() {
         return <Bookings bookings={bookings} onStatusChange={handleStatusChange} onRescheduleStart={(id) => { setOpenRescheduleFor(id); }} onReschedule={handleReschedule} onPageChange={setCurrentPage} onOpenChat={handleOpenChat} initialRescheduleId={openRescheduleFor} onClearReschedule={() => setOpenRescheduleFor(null)} tutorAvailability={manualSlots} />;
       case 'chat': {
         const bookedStudents = Array.from(new Set(bookings.map(b => b.studentEmail))).filter((email): email is string => typeof email === 'string' && !!email);
+        
+        // Map contacts to always show the freshest mapped identity 
+        const liveContacts = contacts.map(c => {
+           let email = (c.studentEmail || '').toLowerCase().trim();
+           if (!email && c.id.includes('_')) {
+             email = c.id.substring(c.id.indexOf('_') + 1).toLowerCase();
+           }
+           const spr = studentProfiles[email] || studentProfiles[email.replace(/\./g, '_')] || studentProfiles[email.replace(/_/g, '.')];
+           
+           let bestName = (spr?.name && spr.name !== 'Student') ? spr.name : c.name;
+           // Fallback to bookings again just in case during render
+           if (bestName === 'Student' || bestName === 'Unknown') {
+             const b = bookings.find(bk => (bk.studentEmail || '').toLowerCase().trim() === email);
+             if (b && b.name !== 'Student') bestName = b.name;
+           }
+
+           return {
+             ...c,
+             name: bestName,
+             avatar: spr?.avatar || spr?.profileImage || c.avatar || '',
+             initials: (bestName && bestName !== 'Student' && !bestName.includes('@') ? bestName : 'ST').substring(0, 2).toUpperCase()
+           };
+        });
+
         const fullContactList = [
-          ...contacts,
+          ...liveContacts,
           ...bookedStudents
-            .filter(email => !contacts.some(c => c.id.includes(email?.replace(/\./g, '_') || '')))
+            .filter(email => {
+              // Only include students who have an ACTIVE (pending/confirmed) booking
+              const hasActiveBooking = bookings.some(b => 
+                (b.studentEmail || '').toLowerCase().trim() === email && 
+                (b.status === 'pending' || b.status === 'confirmed')
+              );
+              const hasExistingChat = liveContacts.some(c => c.id.includes(email?.replace(/\./g, '_') || ''));
+              return hasActiveBooking && !hasExistingChat;
+            })
             .map(email => {
               const b = bookings.find(b => b.studentEmail === email);
+              const spr = studentProfiles[email];
               return {
                 id: `${profile.id}_${email?.replace(/\./g, '_')}`,
-                name: b?.studentName || b?.name || 'Student',
-                initials: (b?.studentName || b?.name || 'ST').substring(0, 2).toUpperCase(),
+                name: spr?.name || b?.studentName || b?.name || 'Student',
+                avatar: spr?.avatar || spr?.profileImage || '',
+                studentEmail: email,
+                initials: (spr?.name || b?.studentName || b?.name || 'ST').substring(0, 2).toUpperCase(),
                 online: false,
                 unread: 0,
                 lastMessage: '👋 Start a conversation...',
@@ -1111,10 +1544,14 @@ export default function App() {
             onAddSlot={handleAddSlot}
             onDeleteSlot={handleDeleteSlot}
             onEditSlot={handleEditSlot}
+            onBatchAddSlots={handleBatchAddSlots}
+            onClearSlots={handleClearSlots}
           />
         );
       case 'pricing':
-        return <Pricing experience={experience} />;
+        return <Pricing experience={experience} tutorId={profile?.id} targetClasses={profile?.targetClasses} />;
+      case 'notes':
+        return <Notes notes={notes} tutorId={profile?.id} tutorName={profile?.name} />;
       case 'reviews':
         const realReviews = bookings
           .filter(b => b.reviewSubmitted)
@@ -1127,17 +1564,23 @@ export default function App() {
             time: b.time,
             subject: b.subject
           }));
-        const combinedReviews = [...INITIAL_REVIEWS, ...realReviews];
+        const combinedReviews = realReviews.map(r => ({ ...r, name: r.studentName, text: r.comment }));
         return <Reviews reviews={combinedReviews} profile={profile} />;
       case 'kyc':
         return <KYC />;
       case 'settings':
         return <Settings />;
       case 'profile':
-        return <Profile user={{...user, ...profile}} onExperienceChange={setExperience} />;
+        return <Profile user={{...user, ...profile}} onExperienceChange={(val: string) => setExperience(val === 'Fresher' ? 0 : parseInt(val) || 5)} />;
       case 'live-class':
         return null; // Handled by fixed overlay
       default:
+        const totalSlotsCount = manualSlots.length;
+        // Basic deduction for booked ones
+        const activeBookings = bookings.filter(b => b.status === 'confirmed' || b.status === 'pending');
+        const bookedCount = activeBookings.length; 
+        const displaySlots = manualSlots.map(s => ({ ...s, booked: activeBookings.some(b => b.time === s.start && b.date === s.date) }));
+        
         return <Dashboard user={{...user, ...profile}} bookings={bookings} onPageChange={setCurrentPage} onSearch={handleSearch} onRescheduleStart={(id) => { setOpenRescheduleFor(id); setCurrentPage('bookings'); }} onReschedule={handleReschedule} tutorAvailability={manualSlots} onJoinSession={startSession} />;
     }
   };
@@ -1149,6 +1592,44 @@ export default function App() {
         <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 text-center">
           <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mb-6"></div>
           <p className="label-caps opacity-40 animate-pulse tracking-widest font-black uppercase text-xs">Authenticating Profile...</p>
+        </div>
+      );
+    }
+
+    // 0. ACCOUNT BLOCK CHECK (System Level Enforcement)
+    if (profile?.status === 'blocked') {
+      return (
+        <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="max-w-md w-full bg-white rounded-[2.5rem] p-10 shadow-2xl text-center border border-slate-100"
+          >
+            <div className="w-20 h-20 bg-rose-50 rounded-full flex items-center justify-center mx-auto mb-6">
+              <XCircle size={40} className="text-rose-500" />
+            </div>
+            <h2 className="text-3xl font-black text-slate-800 tracking-tight leading-tight mb-4">Account Suspended</h2>
+            <p className="text-slate-500 font-medium leading-relaxed mb-8">
+              Your tutor account has been suspended by the Eduqra administration. Access to the dashboard is currently restricted.
+            </p>
+            <div className="space-y-4">
+               <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Tutor ID</p>
+                 <p className="text-xs font-bold text-slate-600 font-mono">{profile.id}</p>
+               </div>
+               <div className="p-4 bg-rose-50 rounded-2xl border border-rose-100 italic">
+                 <p className="text-sm font-bold text-rose-600">
+                   "We're sorry, but you are currently unable to access this site."
+                 </p>
+               </div>
+               <button 
+                onClick={handleLogout}
+                className="w-full bg-slate-900 text-white font-black py-5 rounded-2xl hover:scale-[1.02] active:scale-95 transition-all uppercase text-xs tracking-widest flex items-center justify-center gap-3 shadow-xl"
+              >
+                <LogOut size={16} /> Sign Out & Support
+              </button>
+            </div>
+          </motion.div>
         </div>
       );
     }
@@ -1240,8 +1721,8 @@ export default function App() {
           </div>
           <h2 className="text-3xl font-black mb-4 tracking-tight text-slate-800">Application Under Review</h2>
           <p className="text-slate-500 font-bold max-w-md mb-10 text-sm leading-relaxed">
-            Thank you for registering! Your profile is currently being verified by our Super Admin team. 
-            <span className="block mt-2 text-primary font-black uppercase text-[10px] tracking-widest">You will get a response regarding your approval within 24 hours.</span>
+            Thank you for registering! Our Super Admin team will verify your details and credentials. 
+            <span className="block mt-2 text-primary font-black uppercase text-[11px] tracking-widest">You will get a response regarding your approval within 24 hours.</span>
           </p>
 
           <div className="max-w-md w-full bg-slate-50/50 border border-slate-100 p-8 rounded-4xl mb-12 text-left">
@@ -1281,17 +1762,20 @@ export default function App() {
           <div className="w-28 h-28 bg-rose-500 rounded-full flex items-center justify-center mb-10 shadow-2xl shadow-rose-500/30">
             <XCircle size={56} className="text-white" />
           </div>
-          <h2 className="text-4xl font-black mb-4 tracking-tight text-on-surface">Action Required</h2>
-          <p className="text-rose-600 font-black uppercase text-[10px] mb-8 bg-rose-50 px-4 py-2 rounded-full border border-rose-100">Verification Failed</p>
+          <h2 className="text-4xl font-black mb-4 tracking-tight text-on-surface">Application Status</h2>
+          <p className="text-rose-600 font-black uppercase text-[10px] mb-8 bg-rose-50 px-4 py-2 rounded-full border border-rose-100">Verification Update</p>
           
           <div className="max-w-md w-full bg-slate-50 border-l-4 border-rose-500 p-8 rounded-4xl mb-10 text-left">
-            <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">Admin Feedback & Reason:</p>
-            <p className="text-slate-700 font-bold italic text-base leading-relaxed">"{profile.rejectionReason || 'One or more of your documents were blurred or invalid. Please re-apply with clearly visible credentials.'}"</p>
+            <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">Feedback from Administration:</p>
+            <p className="text-slate-700 font-bold italic text-base leading-relaxed mb-6">"{profile.rejectionReason || 'Please review your uploaded documents and ensure they are clearly legible.'}"</p>
+            <p className="text-[11px] text-slate-500 font-medium leading-relaxed">
+              Every expert was once a beginner. We believe in your potential! Please address the feedback above and re-apply to join our global network of educators.
+            </p>
           </div>
 
           <div className="flex flex-col sm:flex-row items-center gap-4 w-full max-w-md">
             <button onClick={handleReapply} className="w-full bg-primary text-white font-black px-8 py-5 rounded-2xl shadow-2xl shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all text-xs flex items-center justify-center gap-3">
-              <ShieldCheck size={18} /> Re-apply for Approved Status
+              <ShieldCheck size={18} /> Update Details & Re-apply
             </button>
             <button onClick={handleLogout} className="w-full sm:w-auto text-slate-400 font-bold px-8 py-5 text-[10px]">Sign Out</button>
           </div>
@@ -1363,6 +1847,24 @@ export default function App() {
                   </div>
 
                   <div className="flex items-center gap-6">
+                    {sessionStatus === 'waiting' && (
+                      <button 
+                        onClick={async () => {
+                          const now = new Date();
+                          setSessionStartTime(now);
+                          setSessionStatus('live');
+                          if (activeMeetingId) {
+                            await updateDoc(doc(db, 'bookings', activeMeetingId), {
+                              startedAt: serverTimestamp(),
+                              status: 'live'
+                            });
+                          }
+                        }}
+                        className="bg-emerald-500 text-white font-black px-6 py-2 rounded-xl text-[10px] uppercase tracking-widest shadow-lg shadow-emerald-500/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
+                      >
+                        <Play size={14} fill="currentColor" /> Start Class
+                      </button>
+                    )}
                     <div className="flex flex-col items-end">
                       <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white/20">Elapsed</span>
                       <span className="text-xl font-mono font-bold tracking-wider text-primary">{sessionTimer}</span>
@@ -1451,16 +1953,15 @@ export default function App() {
                             } else {
                               // Student 1-on-1 logic
                               return sessionStatus === 'live' ? (
-                                <div className="text-center space-y-6">
-                                  <div className="relative w-20 h-20 md:w-24 md:h-24 mx-auto">
-                                    <div className="absolute inset-0 border-2 border-primary/20 rounded-full animate-ping"></div>
-                                    <div className="w-full h-full rounded-full bg-primary/10 flex items-center justify-center text-primary font-black text-2xl border-0 relative z-10">
-                                      ST
-                                    </div>
-                                  </div>
-                                  <div className="space-y-2">
-                                    <p className="text-sm md:text-lg font-serif italic text-white/80">Student Connected</p>
-                                    <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-500">Video Available</p>
+                                <div className="w-full h-full relative">
+                                  <video 
+                                    ref={remoteVideoRef} 
+                                    autoPlay 
+                                    playsInline 
+                                    className="w-full h-full object-cover"
+                                  />
+                                  <div className="absolute inset-x-0 bottom-0 p-6 bg-gradient-to-t from-black/80 via-black/40 to-transparent">
+                                    <p className="text-sm font-bold text-white/90">Student</p>
                                   </div>
                                 </div>
                               ) : (

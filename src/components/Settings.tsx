@@ -3,7 +3,7 @@ import { auth, db } from '../firebase';
 import { doc, updateDoc, onSnapshot } from 'firebase/firestore';
 import { updatePassword, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
 import { useEffect, useState } from 'react';
-import { Bell, Shield, Eye, EyeOff, Lock, Save, Loader2 } from 'lucide-react';
+import { Bell, Shield, Eye, EyeOff, Lock, Save, Loader2, RefreshCw, Check } from 'lucide-react';
 import { motion } from 'motion/react';
 
 export function Settings() {
@@ -21,10 +21,10 @@ export function Settings() {
   });
 
   const [prefState, setPrefState] = useState({
-    newBookings: true,
-    cancellations: true,
-    push: false,
-    summary: true
+    reminders: true,
+    messages: true,
+    updates: true,
+    push: false
   });
 
   useEffect(() => {
@@ -33,7 +33,12 @@ export function Settings() {
       if (snap.exists()) {
         const data = snap.data();
         if (data.notificationPreferences) {
-          setPrefState(data.notificationPreferences);
+          setPrefState({
+            reminders: data.notificationPreferences.reminders ?? true,
+            messages: data.notificationPreferences.messages ?? true,
+            updates: data.notificationPreferences.updates ?? true,
+            push: data.notificationPreferences.push ?? false
+          });
         }
       }
     });
@@ -64,6 +69,12 @@ export function Settings() {
   const handleUpdatePassword = async () => {
     if (!auth.currentUser || !auth.currentUser.email) return;
     
+    if (!passwords.current || !passwords.new || !passwords.confirm) {
+      setErrorMessage("All fields are required");
+      setPwdStatus('error');
+      return;
+    }
+
     if (passwords.new !== passwords.confirm) {
       setErrorMessage("Passwords do not match");
       setPwdStatus('error');
@@ -90,10 +101,14 @@ export function Settings() {
       setPasswords({ current: '', new: '', confirm: '' });
       setTimeout(() => setPwdStatus('idle'), 3000);
     } catch (e: any) {
-      console.error('Error updating password:', e);
-      setErrorMessage(e.message || "Failed to update password. Check your current password.");
+      console.error('Password update failed:', e);
+      const msg = e.code === 'auth/wrong-password' ? "Current password is incorrect" : (e.message || "Failed to update password");
+      setErrorMessage(msg);
       setPwdStatus('error');
-      setTimeout(() => setPwdStatus('idle'), 5000);
+      setTimeout(() => {
+        setPwdStatus('idle');
+        setErrorMessage('');
+      }, 5000);
     }
   };
 
@@ -111,22 +126,26 @@ export function Settings() {
           
           <div className="space-y-4 bg-slate-50 p-6 rounded-2xl border border-slate-100">
             {[
-              { id: 'newBookings', label: 'Email notifications for new bookings' },
-              { id: 'cancellations', label: 'SMS alerts for cancellations' },
-              { id: 'push', label: 'Push notifications in browser' },
-              { id: 'summary', label: 'Weekly performance summary' },
+              { id: 'reminders', label: 'Booking Reminders', desc: 'Alerts for new bookings and cancellations' },
+              { id: 'messages', label: 'Message Alerts', desc: 'Notify when students send new messages' },
+              { id: 'updates', label: 'Platform Updates', desc: 'Updates about site features and maintenance' },
+              { id: 'push', label: 'Push Notifications', desc: 'Receive background alerts in browser' },
             ].map((pref, i) => (
-              <label key={i} className="flex items-center justify-between group p-2 hover:bg-white rounded-xl transition-all cursor-pointer">
-                <span className="text-sm font-bold text-on-surface-variant group-hover:text-on-surface transition-colors">
-                  {pref.label}
-                </span>
+              <label key={i} className="flex items-center justify-between group p-3 hover:bg-white rounded-xl transition-all cursor-pointer">
+                <div className="pr-4">
+                  <p className="text-sm font-bold text-on-surface-variant group-hover:text-on-surface transition-colors">
+                    {pref.label}
+                  </p>
+                  <p className="text-[10px] text-on-surface-variant/40 font-medium">{pref.desc}</p>
+                </div>
                 <button 
                   onClick={() => handleTogglePref(pref.id as any)}
-                  className={`w-10 h-5 md:w-11 md:h-5.5 rounded-full transition-all relative ${prefState[pref.id as keyof typeof prefState] ? 'bg-primary' : 'bg-slate-300'}`}
+                  className={`w-11 h-6 rounded-full transition-all relative shrink-0 ${prefState[pref.id as keyof typeof prefState] ? 'bg-primary' : 'bg-[#D1D5DB]'}`}
                 >
                   <motion.div 
-                    animate={{ x: prefState[pref.id as keyof typeof prefState] ? '1.25rem' : '0.15rem' }}
-                    className="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-sm"
+                    transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                    animate={{ x: prefState[pref.id as keyof typeof prefState] ? '1.25rem' : '0.2rem' }}
+                    className="absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm"
                   />
                 </button>
               </label>
@@ -137,10 +156,10 @@ export function Settings() {
             <button 
               onClick={handleSavePrefs}
               disabled={status === 'saving'}
-              className="px-6 py-2.5 bg-primary text-white font-black text-[10px] uppercase tracking-widest rounded-xl hover:scale-105 active:scale-95 transition-all flex items-center gap-2 shadow-lg shadow-primary/20 disabled:opacity-50"
+              className="px-10 py-4 bg-primary text-white font-black text-[11px] uppercase tracking-widest rounded-2xl hover:scale-105 active:scale-95 transition-all flex items-center gap-2 shadow-xl shadow-primary/20 disabled:opacity-50"
             >
-              {status === 'saving' ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
-              Save Preferences
+              {status === 'saving' ? <Loader2 className="w-4 h-4 animate-spin text-white" /> : <Save className="w-4 h-4" />}
+              Save Button
             </button>
             {status === 'success' && <span className="text-green-500 text-[10px] font-black uppercase tracking-widest">Saved!</span>}
             {status === 'error' && <span className="text-red-500 text-[10px] font-black uppercase tracking-widest">Error Saving</span>}
@@ -219,19 +238,29 @@ export function Settings() {
             </div>
 
             {errorMessage && (
-              <p className="text-red-500 text-[10px] font-bold uppercase tracking-widest ml-1">{errorMessage}</p>
+              <p className="text-red-500 text-[11px] font-medium ml-1 animate-in fade-in slide-in-from-top-1">{errorMessage}</p>
             )}
 
             <div className="flex items-center gap-4">
               <button 
                 onClick={handleUpdatePassword}
-                disabled={pwdStatus === 'saving'}
-                className="text-[11px] font-black text-primary bg-white border border-primary/20 hover:bg-primary hover:text-white px-8 py-3 rounded-xl transition-all uppercase tracking-widest shadow-sm disabled:opacity-50 flex items-center gap-2"
+                disabled={pwdStatus === 'saving' || pwdStatus === 'success'}
+                className={`w-full sm:w-auto px-12 py-4 rounded-2xl text-[11px] font-black uppercase tracking-[0.2em] shadow-xl transition-all duration-300 flex items-center justify-center gap-2 ${pwdStatus === 'success' ? 'bg-green-500 hover:bg-green-600 text-white shadow-green-500/20' : 'bg-primary text-white hover:opacity-90 shadow-primary/20'}`}
               >
-                {pwdStatus === 'saving' ? <Loader2 className="w-3 h-3 animate-spin" /> : <Lock className="w-3 h-3" />}
-                Update Password
+                {pwdStatus === 'saving' ? (
+                   <span className="opacity-70 animate-pulse">Updating...</span>
+                ) : pwdStatus === 'success' ? (
+                  <>
+                    <Check size={16} />
+                    Password Updated
+                  </>
+                ) : (
+                  <>
+                    <Lock size={16} />
+                    Update Password
+                  </>
+                )}
               </button>
-              {pwdStatus === 'success' && <span className="text-green-500 text-[10px] font-black uppercase tracking-widest">Password Updated!</span>}
             </div>
           </div>
         </div>

@@ -56,7 +56,9 @@ export function Bookings({ bookings, onStatusChange, onRescheduleStart, onResche
   };
 
   const filteredBookings = bookings.filter(b => {
-    const matchesFilter = filter === 'All' || b.status === filter;
+    const matchesFilter = filter === 'All' 
+      ? (b.status !== 'completed' && b.status !== 'cancelled')
+      : b.status === filter;
     const name = b.name || '';
     const subject = b.subject || '';
     const matchesSearch = name.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -190,16 +192,16 @@ export function Bookings({ bookings, onStatusChange, onRescheduleStart, onResche
 
               <div className="mt-auto space-y-2">
                 {booking.status === 'pending' && (
-                  <div className="flex gap-2">
+                  <div className="flex flex-col sm:flex-row gap-2">
                     <button 
-                      onClick={() => onStatusChange(Number(booking.id), 'confirmed')}
+                      onClick={() => onStatusChange(booking.id, 'confirmed')}
                       className="flex-1 bg-primary text-white font-bold py-2.5 rounded-xl text-[10px] hover:bg-primary/90 transition-all shadow-sm active:scale-95 flex items-center justify-center gap-1.5"
                     >
                       <Check className="w-3.5 h-3.5" /> Accept
                     </button>
                     <button 
                       onClick={() => {
-                        onStatusChange(Number(booking.id), 'cancelled');
+                        onStatusChange(booking.id, 'cancelled');
                         handleRescheduleClick(booking); // Proactively suggest rescheduling
                       }}
                       className="flex-1 bg-red-50 text-red-600 font-bold py-2.5 rounded-xl text-[10px] hover:bg-red-100 transition-all shadow-sm active:scale-95 flex items-center justify-center gap-1.5"
@@ -228,21 +230,39 @@ export function Bookings({ bookings, onStatusChange, onRescheduleStart, onResche
 
                 {booking.status === 'confirmed' && (() => {
                   const now = new Date();
-                  const todayStr = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-                  const isoToday = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
-                  const isToday = booking.date === todayStr || booking.date === isoToday;
                   
-                  const sessionMins = parseTimeStr(booking.time);
-                  const nowMins = now.getHours() * 60 + now.getMinutes();
-                  const diffMins = sessionMins - nowMins;
+                  // Construct robust date objects for comparison
+                  const [year, month, day] = booking.date.includes('-') 
+                    ? booking.date.split('-').map(Number)
+                    : [now.getFullYear(), now.getMonth(), now.getDate()]; // Fallback for mock data strings
+                  
+                  // Parse time: "12:00 PM" -> hours, minutes
+                  const timeMatch = booking.time.match(/(\d+):(\d+)\s*(AM|PM)/i);
+                  let hours = 0, minutes = 0;
+                  if (timeMatch) {
+                    let [_, h, m, ampm] = timeMatch;
+                    hours = parseInt(h);
+                    minutes = parseInt(m);
+                    if (ampm.toUpperCase() === 'PM' && hours < 12) hours += 12;
+                    if (ampm.toUpperCase() === 'AM' && hours === 12) hours = 0;
+                  }
+
+                  const sessionStart = new Date(booking.date.includes('-') ? booking.date : `${now.getMonth()+1}/${now.getDate()}/${now.getFullYear()}`);
+                  sessionStart.setHours(hours, minutes, 0, 0);
                   
                   const durationHrs = parseFloat(booking.duration || '1');
-                  const durationMins = durationHrs * 60;
+                  const sessionEnd = new Date(sessionStart.getTime() + durationHrs * 60 * 60 * 1000);
                   
-                  const isActive = isToday && diffMins <= 10 && diffMins >= -(durationMins);
+                  const diffMs = sessionStart.getTime() - now.getTime();
+                  const diffMins = diffMs / (60 * 1000);
                   
+                  // Active window: Starts 10 mins before, ends exactly at duration end
+                  const isActive = now >= new Date(sessionStart.getTime() - 10 * 60 * 1000) && now <= sessionEnd;
+                  const isPast = now > sessionEnd;
+                  const isToday = now.toDateString() === sessionStart.toDateString();
+
                   return (
-                    <div className="flex gap-2">
+                    <div className="flex flex-col sm:flex-row gap-2">
                       <button 
                         onClick={() => onOpenChat?.(booking)}
                         className="flex-1 bg-primary/5 text-primary font-bold py-2.5 rounded-xl text-[10px] hover:bg-primary/10 transition-all active:scale-95 flex items-center justify-center gap-1.5"
@@ -258,7 +278,10 @@ export function Bookings({ bookings, onStatusChange, onRescheduleStart, onResche
                         </button>
                       ) : (
                         <div className="flex-1 bg-slate-50 text-slate-400 font-bold py-2.5 rounded-xl text-[10px] flex items-center justify-center gap-1.5 border border-slate-100 italic">
-                          <Clock className="w-3.5 h-3.5" /> {isToday && diffMins > 10 ? 'Session Not Started' : (diffMins > 10 ? 'Upcoming' : 'Session Ended')}
+                          <Clock className="w-3.5 h-3.5" /> {
+                            isPast ? 'Session Ended' : 
+                            (isToday && diffMins > 10) ? 'Session Not Started' : 'Upcoming'
+                          }
                         </div>
                       )}
                     </div>

@@ -129,10 +129,14 @@ export function Chat({
                 )}
                 <div className="relative shrink-0">
                   <div className={cn(
-                    "w-10 h-10 md:w-12 md:h-12 rounded-full font-black flex items-center justify-center text-xs md:text-sm transition-transform group-hover:scale-105",
+                    "w-10 h-10 md:w-12 md:h-12 rounded-full font-black flex items-center justify-center text-xs md:text-sm transition-transform group-hover:scale-105 overflow-hidden",
                     activeContactId === contact.id ? "bg-primary/20 text-primary" : "bg-slate-200 text-slate-500"
                   )}>
-                    {contact.initials}
+                    {(contact as any).avatar ? (
+                      <img src={(contact as any).avatar} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      contact.initials
+                    )}
                   </div>
                   {contact.online && (
                     <span className="absolute bottom-0 right-0 w-3 h-3 md:w-3.5 md:h-3.5 bg-green-500 border-2 border-white rounded-full"></span>
@@ -185,8 +189,12 @@ export function Chat({
                   >
                     <ChevronLeft className="w-5 h-5 text-slate-600" />
                   </button>
-                  <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-primary/10 font-black text-primary flex items-center justify-center text-xs border border-primary/10">
-                    {activeContact?.initials}
+                  <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-primary/10 font-black text-primary flex items-center justify-center text-xs border border-primary/10 overflow-hidden">
+                    {(activeContact as any).avatar ? (
+                      <img src={(activeContact as any).avatar} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      activeContact?.initials
+                    )}
                   </div>
                   <div>
                     <h4 className="font-black text-sm md:text-lg leading-tight text-on-surface">{activeContact?.name || activeContact?.id}</h4>
@@ -262,9 +270,21 @@ export function Chat({
                             )}>
                               {msg.type === 'poll' ? (
                                 <div className="min-w-[200px] md:min-w-[250px]">
-                                  <h4 className="font-black text-sm md:text-base mb-3 md:mb-4 flex items-center gap-2">
-                                    <BarChart2 size={16} /> {msg.pollData.question}
-                                  </h4>
+                                  <div className="flex items-start justify-between mb-3 md:mb-4">
+                                    <h4 className="font-black text-sm md:text-base flex items-center gap-2 pr-2">
+                                      <BarChart2 size={16} /> {msg.pollData.question}
+                                    </h4>
+                                    <button 
+                                      onClick={() => onDeleteMessage(msg.id as any, true)}
+                                      className={cn(
+                                        "shrink-0 p-1.5 rounded-lg transition-all",
+                                        isMe ? "hover:bg-white/20 text-white" : "hover:bg-rose-50 text-rose-500"
+                                      )}
+                                      title="Delete Poll"
+                                    >
+                                      <Trash2 size={14} />
+                                    </button>
+                                  </div>
                                   <div className="space-y-1.5 md:space-y-2">
                                     {msg.pollData.options.map((opt: string, idx: number) => {
                                       const votes = msg.pollData.votes || {};
@@ -304,6 +324,19 @@ export function Chat({
                                     <span className="text-[9px] font-black">{Object.keys(msg.pollData.votes || {}).length} participants</span>
                                   </div>
                                 </div>
+                              ) : (msg.type === 'image' || (msg.type === 'file' && (msg.fileName?.toLowerCase().endsWith('.jpg') || msg.fileName?.toLowerCase().endsWith('.png') || msg.fileName?.toLowerCase().endsWith('.jpeg') || msg.fileName?.toLowerCase().endsWith('.webp')))) ? (
+                                <div className="relative group max-w-[220px] md:max-w-[280px]">
+                                  <img 
+                                    src={msg.fileUrl} 
+                                    alt={msg.fileName}
+                                    className="w-full h-auto rounded-xl object-cover shadow-sm bg-white/50"
+                                  />
+                                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl flex items-center justify-center backdrop-blur-[2px]">
+                                    <a href={msg.fileUrl} target="_blank" download className="bg-white text-black text-[10px] font-black px-4 py-2 rounded-full cursor-pointer hover:scale-105 transition-transform flex items-center gap-2">
+                                      <Download size={14} /> Download
+                                    </a>
+                                  </div>
+                                </div>
                               ) : msg.type === 'file' ? (
                                 <a 
                                   href={msg.fileUrl} 
@@ -321,19 +354,6 @@ export function Chat({
                                     <p className="text-[9px] font-black opacity-40 uppercase tracking-tighter">Document • {msg.fileSize || 'N/A'}</p>
                                   </div>
                                 </a>
-                              ) : msg.type === 'image' || (msg.type === 'file' && (msg.fileName?.includes('.jpg') || msg.fileName?.includes('.png') || msg.fileName?.includes('.jpeg') || msg.fileName?.includes('.webp'))) ? (
-                                <div className="relative group max-w-[220px] md:max-w-[280px]">
-                                  <img 
-                                    src={msg.fileUrl} 
-                                    alt={msg.fileName}
-                                    className="w-full h-auto rounded-xl object-cover shadow-sm bg-white/50"
-                                  />
-                                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl flex items-center justify-center backdrop-blur-[2px]">
-                                    <a href={msg.fileUrl} target="_blank" download className="bg-white text-black text-[10px] font-black px-4 py-2 rounded-full cursor-pointer hover:scale-105 transition-transform flex items-center gap-2">
-                                      <Download size={14} /> Download
-                                    </a>
-                                  </div>
-                                </div>
                               ) : (
                                 <p className={cn(
                                   "text-sm md:text-sm font-bold leading-snug",
