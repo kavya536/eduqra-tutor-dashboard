@@ -863,25 +863,15 @@ export default function App() {
             if (snap.exists()) {
               const data = snap.data();
               if (data.status === 'confirmed' || data.status === 'pending') {
-                  if (data.studentPresent && data.tutorJoined && (data.talkingTime || 0) >= 840) {
+                  if (data.studentPresent && data.tutorJoined && (data.talkingTime || 0) >= 600 && data.topic) {
                     await updateDoc(bookingRef, { 
                       status: 'completed', 
                       attendance_status: 'attended', 
                       completedAt: serverTimestamp() 
                     });
-                  } else {
-                    await updateDoc(bookingRef, { 
-                      status: 'cancelled', 
-                      attendance_status: 'not_attended' 
-                    });
                   }
               }
             }
-          }
-          
-          // 3. Auto-cancel pending sessions if they started without confirmation
-          if (isToday && nowMins > bMins && booking.status === 'pending') {
-             await updateDoc(doc(db, 'bookings', booking.id.toString()), { status: 'cancelled' });
           }
         }
       });
@@ -1162,7 +1152,7 @@ export default function App() {
       if (!snap.exists()) return;
       const bookingData = snap.data() as any;
 
-      const isVoiceSuccess = talkingTimeRef.current >= 840; // 14 mins
+      const isVoiceSuccess = talkingTimeRef.current >= 600; // 10 mins
       let durationMins = 0;
       if (sessionStartTime) {
         durationMins = Math.floor((new Date().getTime() - sessionStartTime.getTime()) / 60000);
@@ -1174,16 +1164,16 @@ export default function App() {
         studentValid = Object.values(bookingData.participantData).some((p: any) => {
           if (!p.joinTime) return false;
           const stay = Math.floor((new Date().getTime() - p.joinTime.toDate().getTime()) / 60000);
-          return stay >= 12;
+          return stay >= 10;
         });
       } else {
         const sJoin = bookingData.studentJoinTime?.toDate();
         const sStay = sJoin ? Math.floor((new Date().getTime() - sJoin.getTime()) / 60000) : 0;
-        studentValid = bookingData.studentPresent && sStay >= 12;
+        studentValid = bookingData.studentPresent && sStay >= 10;
       }
 
-      // Validity Criteria: 14+ mins total, 14+ mins talking, student present 12+ mins
-      const isValidClass = durationMins >= 14 && isVoiceSuccess && studentValid;
+      // Validity Criteria: 10+ mins total, 10+ mins talking, student present 10+ mins
+      const isValidClass = durationMins >= 10 && isVoiceSuccess && studentValid;
 
       // Only ask for topic if the class was valid
       if (isValidClass && !showTopicModal && !sessionTopic) {

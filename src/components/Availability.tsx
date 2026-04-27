@@ -208,7 +208,7 @@ export function Availability({ slots, bookings, onAddSlot, onDeleteSlot, onEditS
     const todayDate = new Date().toISOString().split('T')[0];
     const d = new Date();
     const dayName = dayOrder[d.getDay() === 0 ? 6 : d.getDay() - 1];
-    setCurrentSlot({ day: dayName, date: todayDate, start: '09:00', end: '10:00', status: 'free' });
+    setCurrentSlot({ day: dayName, start: '09:00', end: '10:00', status: 'free' });
     setEditId(null);
     setIsModalOpen(true);
   };

@@ -1,4 +1,4 @@
-import { Save, CheckCircle2, AlertCircle, Plus, Trash2, BookOpen, Calendar, Zap, ChevronDown, Award } from 'lucide-react';
+import { Save, CheckCircle2, AlertCircle, Plus, Trash2, BookOpen, Calendar, Zap, ChevronDown, Award, X } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -39,13 +39,16 @@ export function Pricing({ experience, tutorId, targetClasses }: PricingProps) {
   const [entries, setEntries] = useState<PricingEntry[]>([]);
   const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [loading, setLoading] = useState(true);
+  const [isAddingCustom, setIsAddingCustom] = useState(false);
+  const [customSubject, setCustomSubject] = useState('');
+  const [existingCustoms, setExistingCustoms] = useState<string[]>([]);
 
   // Exact matching based on Registration.tsx options
   const rawClasses = targetClasses || '';
   
   const isGraduate = rawClasses.includes('Graduate');
   const isIntermediate = rawClasses.includes('Intermediate');
-  const isSchool = rawClasses.includes('Primary') || rawClasses.includes('Middle') || rawClasses.includes('Nursery');
+  const isSchool = rawClasses.includes('Primary') || rawClasses.includes('Middle') || rawClasses.includes('Nursery') || rawClasses.includes('Secondary');
 
   useEffect(() => {
     if (!tutorId) return;
@@ -55,6 +58,12 @@ export function Pricing({ experience, tutorId, targetClasses }: PricingProps) {
         setEntries(data.pricingEntries);
       } else {
         setEntries([]);
+      }
+      // Load custom subjects that are NOT in the standard lists
+      if (data?.subjects) {
+        const standardSubjects = Object.values(SUBJECT_LISTS).flat();
+        const customs = data.subjects.filter((s: string) => !standardSubjects.includes(s));
+        setExistingCustoms(customs);
       }
       setLoading(false);
     });
@@ -121,15 +130,20 @@ export function Pricing({ experience, tutorId, targetClasses }: PricingProps) {
   };
 
   const getAllowedCategories = () => {
-    // Strictly follow user mapping: 
-    // - B-Tech (Graduate) -> Graduate & Professional only
-    // - Secondary (Upto 10th) -> Intermediate (11th & 12th) only
     if (isGraduate) return ["Graduate & Professional"];
-    if (isSchool) return ["Intermediate (11th & 12th)"];
     if (isIntermediate) return ["Intermediate (11th & 12th)"];
+    if (isSchool) return ["Secondary (Upto 10th)"];
     
-    // Fallback if none match
     return Object.keys(SUBJECT_LISTS);
+  };
+
+  const handleAddCustom = () => {
+    if (!customSubject.trim()) return;
+    if (!existingCustoms.includes(customSubject)) {
+      setExistingCustoms([...existingCustoms, customSubject]);
+    }
+    setCustomSubject('');
+    setIsAddingCustom(false);
   };
 
   const allowedCategories = getAllowedCategories();
@@ -203,21 +217,58 @@ export function Pricing({ experience, tutorId, targetClasses }: PricingProps) {
                   <BookOpen size={14} className="text-[#0047AB]" /> Selection Course
                 </label>
                 <div className="relative">
-                  <select 
-                    value={entry.subject}
-                    onChange={(e) => updateEntry(entry.id, { subject: e.target.value })}
-                    className="w-full bg-slate-50 border-2 border-slate-100 p-4 pr-12 rounded-2xl font-black text-sm text-slate-800 outline-none focus:border-[#0047AB] focus:bg-white transition-all appearance-none cursor-pointer"
-                  >
-                    <option value="" disabled>Select Subject...</option>
-                    {allowedCategories.map(cat => (
-                      <optgroup key={cat} label={cat} className="text-[#0047AB] font-black bg-white">
-                        {SUBJECT_LISTS[cat].map(s => <option key={s} value={s} className="text-slate-700">{s}</option>)}
-                      </optgroup>
-                    ))}
-                  </select>
-                  <ChevronDown size={18} className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-300" />
+                  <div className="flex gap-2">
+                    <select 
+                      value={entry.subject}
+                      onChange={(e) => updateEntry(entry.id, { subject: e.target.value })}
+                      className="flex-1 bg-slate-50 border-2 border-slate-100 p-4 pr-12 rounded-2xl font-black text-sm text-slate-800 outline-none focus:border-[#0047AB] focus:bg-white transition-all appearance-none cursor-pointer"
+                    >
+                      <option value="" disabled>Select Subject...</option>
+                      {allowedCategories.map(cat => (
+                        <optgroup key={cat} label={cat} className="text-[#0047AB] font-black bg-white">
+                          {SUBJECT_LISTS[cat].map(s => <option key={s} value={s} className="text-slate-700">{s}</option>)}
+                        </optgroup>
+                      ))}
+                      {existingCustoms.length > 0 && (
+                        <optgroup label="My Custom Subjects" className="text-emerald-600 font-black bg-white">
+                          {existingCustoms.map(s => <option key={s} value={s} className="text-slate-700">{s}</option>)}
+                        </optgroup>
+                      )}
+                    </select>
+                    <button 
+                      type="button"
+                      onClick={() => setIsAddingCustom(true)}
+                      className="p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl hover:border-[#0047AB] transition-all text-slate-400 hover:text-[#0047AB]"
+                      title="Add Custom Subject"
+                    >
+                      <Plus size={20} />
+                    </button>
+                  </div>
+                  <ChevronDown size={18} className="absolute right-16 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none" />
                 </div>
               </div>
+
+              {/* Custom Subject Modal/Input */}
+              <AnimatePresence>
+                {isAddingCustom && (
+                  <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="bg-[#0047AB]/5 p-4 rounded-2xl border border-[#0047AB]/10 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[9px] font-black text-[#0047AB] uppercase tracking-widest">New Custom Subject</span>
+                      <button onClick={() => setIsAddingCustom(false)} className="text-slate-400 hover:text-rose-500"><X size={14} /></button>
+                    </div>
+                    <div className="flex gap-2">
+                      <input 
+                        type="text" 
+                        value={customSubject}
+                        onChange={(e) => setCustomSubject(e.target.value)}
+                        placeholder="e.g. Sanskrit"
+                        className="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-2 text-xs font-bold outline-none focus:border-[#0047AB]"
+                      />
+                      <button onClick={handleAddCustom} className="bg-[#0047AB] text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest">Add</button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
               {/* Input Fields */}
               <div className="space-y-6">

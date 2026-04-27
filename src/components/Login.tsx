@@ -2,10 +2,9 @@ import { Mail, Lock, AlertCircle, ArrowLeft, CheckCircle2, Eye, EyeOff } from 'l
 import { useState, FormEvent, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { auth } from '../firebase';
-import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
+import { signInWithEmailAndPassword } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
-import { cn } from '../lib/utils';
 
 interface LoginProps {
   onLogin: () => void;
@@ -28,13 +27,10 @@ export function Login({ onLogin, onSwitchToRegister, onReapply }: LoginProps) {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [view, setView] = useState<'login' | 'forgot-password'>('login');
   const [isSendingReset, setIsSendingReset] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [view, setView] = useState<'login' | 'forgot-password' | 'reset-mode'>('login');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [isResetting, setIsResetting] = useState(false);
 
   useEffect(() => {
     const blockedStatus = (window as any).__blockedTutorStatus;
@@ -82,33 +78,24 @@ export function Login({ onLogin, onSwitchToRegister, onReapply }: LoginProps) {
     }
     setIsSendingReset(true);
     try {
-      await sendPasswordResetEmail(auth, email);
-      setSuccessMessage("✅ Reset link sent! Check your inbox.");
-      // Simulate moving to step 2 for demo purposes
-      setTimeout(() => setView('reset-mode'), 2000);
+      // Call the backend to send a branded, professional reset email
+      const response = await fetch('http://localhost:5001/api/auth/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.toLowerCase() })
+      });
+      
+      const data = await response.json();
+      if (response.ok) {
+        setSuccessMessage("✅ Reset link sent! Please check your inbox.");
+      } else {
+        setError(data.message || "⚠️ Unable to process reset request.");
+      }
     } catch (err: any) {
       console.error("❌ Reset Error:", err);
-      setError("⚠️ Could not process reset request.");
+      setError("⚠️ Network error. Please try again later.");
     } finally {
       setIsSendingReset(false);
-    }
-  };
-
-  const handleUpdatePassword = async (e: FormEvent) => {
-    e.preventDefault();
-    if (newPassword !== confirmPassword) {
-      setError("Passwords do not match.");
-      return;
-    }
-    
-    setIsResetting(true);
-    try {
-      setSuccessMessage("✅ Password successfully updated! Sign in now.");
-      setTimeout(() => setView('login'), 2000);
-    } catch (err: any) {
-      setError("Failed to update password.");
-    } finally {
-      setIsResetting(false);
     }
   };
 
@@ -128,53 +115,28 @@ export function Login({ onLogin, onSwitchToRegister, onReapply }: LoginProps) {
         </div>
 
         <div className="bg-white/80 backdrop-blur-3xl p-8 rounded-4xl atelier-card-shadow border border-white/30 space-y-6">
-          <form onSubmit={view === 'login' ? handleLogin : (view === 'forgot-password' ? handleForgotPassword : handleUpdatePassword)} className="space-y-6" autoComplete="off">
-            {/* Honeypot fields to trick browser autofill */}
-            <input type="text" name="dummy-email" style={{ display: 'none' }} aria-hidden="true" />
-            <input type="password" name="dummy-password" style={{ display: 'none' }} aria-hidden="true" />
-
+          <form onSubmit={view === 'login' ? handleLogin : handleForgotPassword} className="space-y-6" autoComplete="off">
             <AnimatePresence mode="wait">
               <motion.div key={view} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
-                {(view === 'login' || view === 'forgot-password') && (
-                  <div className="space-y-2">
-                    <label className="label-caps ml-2">Email Address</label>
-                    <div className="relative group">
-                      <Mail className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-primary transition-colors" />
-                      <input type="email" name="user-identifier-login" value={email} onChange={(e) => setEmail(e.target.value)} required className="input-field" placeholder="tutor@example.com" autoComplete="off" />
-                    </div>
+                <div className="space-y-2">
+                  <label className="label-caps ml-2">Email Address</label>
+                  <div className="relative group">
+                    <Mail className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-primary transition-colors" />
+                    <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required className="input-field" placeholder="tutor@example.com" />
                   </div>
-                )}
+                </div>
                 
                 {view === 'login' && (
                   <div className="space-y-2">
                     <label className="label-caps ml-2">Password</label>
                     <div className="relative group">
                       <Lock className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-primary transition-colors" />
-                      <input type={showPassword ? "text" : "password"} name="user-security-key" value={password} onChange={(e) => setPassword(e.target.value)} required className="input-field pr-12" placeholder="••••••••" autoComplete="new-password" />
+                      <input type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} required className="input-field pr-12" placeholder="••••••••" />
                       <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-primary transition-colors">
                         {showPassword ? <Eye size={18} /> : <EyeOff size={18} />}
                       </button>
                     </div>
                   </div>
-                )}
-
-                {view === 'reset-mode' && (
-                  <>
-                    <div className="space-y-2">
-                      <label className="label-caps ml-2">New Password</label>
-                      <div className="relative group">
-                        <Lock className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                        <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required className="input-field pl-14" placeholder="Min 8 chars..." />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <label className="label-caps ml-2">Confirm New Password</label>
-                      <div className="relative group">
-                        <Lock className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                        <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required className={cn("input-field pl-14", newPassword && confirmPassword && newPassword !== confirmPassword && "border-rose-300")} placeholder="Repeat password..." />
-                      </div>
-                    </div>
-                  </>
                 )}
               </motion.div>
             </AnimatePresence>
@@ -192,11 +154,11 @@ export function Login({ onLogin, onSwitchToRegister, onReapply }: LoginProps) {
 
             <button 
               type="submit" 
-              disabled={isLoggingIn || isSendingReset || isResetting || (view === 'reset-mode' && (!newPassword || newPassword !== confirmPassword))} 
+              disabled={isLoggingIn || isSendingReset} 
               className="w-full btn-primary text-lg py-5 rounded-3xl shadow-2xl shadow-primary/20 hover:shadow-primary/40 tracking-tight disabled:opacity-50 disabled:grayscale group"
             >
               <span className="group-hover:tracking-[0.1em] transition-all duration-300">
-                {isLoggingIn ? 'Signing in...' : (isSendingReset ? 'Processing...' : (isResetting ? 'Updating...' : (view === 'login' ? 'Sign In' : (view === 'forgot-password' ? 'Send Reset Link' : 'Update Password'))))}
+                {isLoggingIn ? 'Signing in...' : (isSendingReset ? 'Processing...' : (view === 'login' ? 'Sign In' : 'Send Reset Link'))}
               </span>
             </button>
 
