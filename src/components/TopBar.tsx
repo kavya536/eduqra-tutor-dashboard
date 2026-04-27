@@ -43,7 +43,7 @@ export function TopBar({ onPageChange, onToggleSidebar, onLogout, notifications,
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const isProfileIncomplete = !user?.upiId || !user?.classPricing;
+  const isProfileIncomplete = !user?.upiId || !Array.isArray(user?.subjects) || user.subjects.length === 0;
 
   return (
     <header className="sticky top-0 right-0 w-full z-40 bg-background/80 backdrop-blur-3xl shadow-sm border-b border-surface-variant/50 flex justify-between items-center px-4 md:px-10 py-3 md:py-4 transition-all gap-2 md:gap-4">
@@ -181,10 +181,11 @@ export function TopBar({ onPageChange, onToggleSidebar, onLogout, notifications,
         {isProfileIncomplete && (
           <button
             onClick={() => onPageChange('profile')}
-            className="animate-pulse hidden md:flex items-center gap-2 bg-red-50 hover:bg-red-100 text-red-600 px-4 py-2 rounded-xl text-[10px] uppercase font-black tracking-widest transition-colors border border-red-200"
+            className="animate-pulse flex items-center gap-2 bg-rose-50 hover:bg-rose-100 text-rose-600 px-4 py-2 rounded-xl text-[10px] uppercase font-black tracking-widest transition-colors border border-rose-200"
           >
             <AlertCircle className="w-4 h-4" />
-            Pricing & UPI Required
+            <span className="hidden sm:inline">Profile Hidden: Subjects & UPI ID Required</span>
+            <span className="sm:hidden">Setup Required</span>
           </button>
         )}
 
@@ -196,7 +197,7 @@ export function TopBar({ onPageChange, onToggleSidebar, onLogout, notifications,
           >
             <div className="text-right hidden sm:block">
               <p className="text-sm font-black text-on-surface group-hover:text-primary transition-colors font-display tracking-tight">
-                {user?.displayName || 'Tutor Account'}
+                {user?.name || user?.displayName || 'Tutor Account'}
               </p>
               <p className="label-caps opacity-60">Verified Tutor</p>
             </div>
@@ -218,7 +219,7 @@ export function TopBar({ onPageChange, onToggleSidebar, onLogout, notifications,
                 className="absolute top-[calc(100%+10px)] right-0 w-56 bg-white rounded-2xl shadow-xl border border-surface-variant py-2 z-[100] overflow-hidden"
               >
                 <div className="px-4 py-3 border-b border-surface-variant mb-1">
-                  <p className="font-black text-primary text-sm truncate">{user?.displayName || 'Tutor'}</p>
+                  <p className="font-black text-primary text-sm truncate">{user?.name || user?.displayName || 'Tutor'}</p>
                   <p className="text-[10px] text-on-surface-variant font-bold truncate">{user?.email}</p>
                 </div>
                 <button onClick={() => { onPageChange('profile'); setIsProfileOpen(false); }}

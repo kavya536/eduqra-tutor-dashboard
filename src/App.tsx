@@ -202,7 +202,7 @@ export default function App() {
         rejectionReason: "", // Clear the reason
         reappliedAt: serverTimestamp()
       });
-      console.log("✅ Re-application successful in users collection.");
+      console.log("âœ… Re-application successful in users collection.");
       
       // Notify Admin
       await addDoc(collection(db, 'admin_notifications'), {
@@ -245,7 +245,6 @@ export default function App() {
   const [studentProfiles, setStudentProfiles] = useState<Record<string, any>>({});
   const [notes, setNotes] = useState<any[]>([]);
 
-  // Keep local availability slots in sync with profile data from Firestore.
   useEffect(() => {
     const profileAvailability = profile?.availability;
     if (!Array.isArray(profileAvailability)) {
@@ -271,7 +270,13 @@ export default function App() {
         return true;
       });
 
-    setManualSlots(normalizedSlots);
+    // Only update if the content has actually changed to prevent 'ghosting' issues during saves
+    const isSame = JSON.stringify(normalizedSlots.map(s => ({...s, id: null}))) === 
+                   JSON.stringify(manualSlots.map(s => ({...s, id: null})));
+    
+    if (!isSame || manualSlots.length === 0) {
+      setManualSlots(normalizedSlots);
+    }
   }, [profile?.availability]);
 
   useEffect(() => {
@@ -387,13 +392,37 @@ export default function App() {
       setNotes(list);
     }, (err) => console.error("Notes Sync Error:", err));
 
-    return () => {
-      unsubBookings();
-      unsubChats();
-      unsubNotifs();
-      unsubNotes();
-    };
-  }, [profile?.id, studentProfiles]);
+  // 5. System Profile Guard Notification
+  useEffect(() => {
+    if (!profile?.id) return;
+    
+    const isIncomplete = !profile.upiId || !Array.isArray(profile.subjects) || profile.subjects.length === 0;
+    
+    if (isIncomplete) {
+      // Check if we already have a setup notification to avoid duplication
+      const hasSetupNotif = notifications.some(n => n.id === 'system-setup-warning');
+      
+      if (!hasSetupNotif) {
+        const setupNotif: TutorNotification = {
+          id: 'system-setup-warning',
+          type: 'booking', // Using booking icon as placeholder
+          title: 'PROFILE HIDDEN: SETUP REQUIRED',
+          description: 'Students cannot see or book you until you update your Subjects and UPI ID in Profile section.',
+          time: 'Now',
+          read: false
+        };
+        setNotifications(prev => [setupNotif, ...prev]);
+      }
+    }
+  }, [profile, notifications.length]);
+
+  return () => {
+    unsubBookings();
+    unsubChats();
+    unsubNotifs();
+    unsubNotes();
+  };
+}, [profile?.id, studentProfiles]);
 
   // Fetch student profiles for all relevant emails
   useEffect(() => {
@@ -459,7 +488,7 @@ export default function App() {
             const profileAvatar = profileData.avatar || profileData.profileImage || '';
             
             if (profileName && (profileName !== contact.name || profileAvatar !== contact.avatar)) {
-              console.log(`🛠️ Healing student identity for ${email} from profile: ${profileName}`);
+              console.log(`ðŸ› ï¸ Healing student identity for ${email} from profile: ${profileName}`);
               const chatRef = doc(db, 'whatsapp', contact.id);
               await updateDoc(chatRef, { 
                 studentName: profileName,
@@ -486,7 +515,7 @@ export default function App() {
                }
             }
             if (bestName !== 'Student' && bestName !== contact.name) {
-              console.log(`🛠️ Healing student identity for ${email} from booking: ${bestName}`);
+              console.log(`ðŸ› ï¸ Healing student identity for ${email} from booking: ${bestName}`);
               const chatRef = doc(db, 'whatsapp', contact.id);
               await updateDoc(chatRef, { studentName: bestName });
             }
@@ -634,7 +663,7 @@ export default function App() {
 
     // Always keep chat document metadata in sync
     await setDoc(chatRef, {
-      lastMessage: payload.text || (payload.type === 'poll' ? '📊 Poll' : '📎 Attachment'),
+      lastMessage: payload.text || (payload.type === 'poll' ? 'ðŸ“Š Poll' : 'ðŸ“Ž Attachment'),
       lastMessageTime: now.toISOString(),
       timestamp: serverTimestamp(),
       studentUnreadCount: payload.messageId ? increment(0) : increment(1),
@@ -674,7 +703,7 @@ export default function App() {
 
     if (everyone) {
       await updateDoc(msgRef, {
-        text: '🚫 This message was deleted',
+        text: 'ðŸš« This message was deleted',
         deletedForEveryone: true
       });
     } else {
@@ -761,7 +790,7 @@ export default function App() {
 
   const [experience, setExperience] = useState(profile?.experience === 'Fresher' ? 0 : 6);
   const [searchTerm, setSearchTerm] = useState('');
-  const [openRescheduleFor, setOpenRescheduleFor] = useState<number | null>(null);
+  const [openRescheduleFor, setOpenRescheduleFor] = useState<string | number | null>(null);
 
   // --- Live Class States ---
   const [sessionStartTime, setSessionStartTime] = useState<Date | null>(null);
@@ -961,6 +990,8 @@ export default function App() {
   
   const [showTopicModal, setShowTopicModal] = useState(false);
   const [sessionTopic, setSessionTopic] = useState('');
+  const [showEndChoiceModal, setShowEndChoiceModal] = useState(false);
+  const [pendingEndAction, setPendingEndAction] = useState<'complete' | 'reschedule' | null>(null);
 
   const startSession = async (bookingId: string) => {
     setCurrentPage('live-class');
@@ -1145,6 +1176,14 @@ export default function App() {
   const endSession = async () => {
     const bookingId = activeMeetingId;
     if (!bookingId) return;
+    
+    // Instead of ending immediately, show the choice modal
+    setShowEndChoiceModal(true);
+  };
+
+  const finalizeSession = async (action: 'complete' | 'reschedule') => {
+    const bookingId = activeMeetingId;
+    if (!bookingId) return;
 
     try {
       const bookingDoc = doc(db, 'bookings', bookingId);
@@ -1212,6 +1251,12 @@ export default function App() {
       }
 
       await updateDoc(bookingDoc, updates);
+      
+      if (action === 'reschedule') {
+        // If rescheduling, we don't mark as completed, but prepare for reschedule
+        await updateDoc(bookingDoc, { status: 'confirmed' }); // Keep it confirmed for reschedule
+        setOpenRescheduleFor(bookingId);
+      }
     } catch (e) {
       console.error("Error finalizing class:", e);
     }
@@ -1226,15 +1271,22 @@ export default function App() {
     }
 
     setShowTopicModal(false);
+    setShowEndChoiceModal(false);
+    setPendingEndAction(null);
 
     setSessionTopic('');
     setSessionStatus('disconnected');
     setSessionStartTime(null);
     setSessionTimer("00:00:00");
+    
     setTimeout(() => {
       setActiveMeetingId(null);
-      setCurrentPage('dashboard');
-    }, 2000);
+      if (action === 'reschedule') {
+        setCurrentPage('bookings'); // Go to bookings to see the reschedule modal
+      } else {
+        setCurrentPage('dashboard');
+      }
+    }, 1500);
   };
 
   const handleMuteAll = async () => {
@@ -1290,36 +1342,38 @@ export default function App() {
 
   const handleStatusChange = async (id: any, status: BookingStatus) => {
     try {
-      // 1. Update Firestore first for persistence
-      const bookingRef = doc(db, 'bookings', id.toString());
-      await updateDoc(bookingRef, { status });
+      if (profile?.id) {
+        // 1. Update Firestore first for persistence
+        const bookingRef = doc(db, 'bookings', id.toString());
+        await updateDoc(bookingRef, { status });
 
-      // 2. Update local state
-      setBookings(prev => prev.map(b => b.id === id ? { ...b, status } : b));
-      
-      const booking = bookings.find(b => b.id === id);
-      if (booking) {
-        if (status === 'confirmed') {
-          addNotification({
-            type: 'booking',
-            title: 'Booking Confirmed',
-            description: `${booking.name || 'Student'}'s ${booking.subject || 'Session'} confirmed.`,
-          });
-        }
+        // 2. Update local state
+        setBookings(prev => prev.map(b => b.id === id ? { ...b, status } : b));
+        
+        const booking = bookings.find(b => b.id === id);
+        if (booking) {
+          if (status === 'confirmed') {
+            addNotification({
+              type: 'booking',
+              title: 'Booking Confirmed',
+              description: `${booking.name || 'Student'}'s ${booking.subject || 'Session'} confirmed.`,
+            });
+          }
 
-        // 3. Notify Student Page
-        if (booking.studentEmail) {
-          await addDoc(collection(db, 'notifications'), {
-            studentEmail: booking.studentEmail,
-            type: 'booking',
-            title: status === 'confirmed' ? 'Session Confirmed! ✅' : 'Session Cancelled ❌',
-            message: status === 'confirmed' 
-              ? `${profile?.name || 'Your tutor'} confirmed your ${booking.subject} session for ${booking.date} at ${booking.time}.${booking.amount ? ` (Amount: ₹${booking.amount})` : ''}`
-              : `${profile?.name || 'Your tutor'} cancelled your ${booking.subject} session. Contact support for details.`,
-            time: new Date().toISOString(),
-            read: false,
-            link: 'my-bookings'
-          });
+          // 3. Notify Student Page
+          if (booking.studentEmail) {
+            await addDoc(collection(db, 'notifications'), {
+              studentEmail: booking.studentEmail,
+              type: 'booking',
+              title: status === 'confirmed' ? 'Session Confirmed! ✅' : 'Session Cancelled ❌',
+              message: status === 'confirmed' 
+                ? `${profile?.name || 'Your tutor'} confirmed your ${booking.subject} session for ${booking.date} at ${booking.time}.${booking.amount ? ` (Amount: ₹${booking.amount})` : ''}`
+                : `${profile?.name || 'Your tutor'} cancelled your ${booking.subject} session. Contact support for details.`,
+              time: new Date().toISOString(),
+              read: false,
+              link: 'my-bookings'
+            });
+          }
         }
       }
     } catch (error) {
@@ -1329,7 +1383,14 @@ export default function App() {
   };
 
   const handleAddSlot = (slot: Omit<AvailabilitySlot, 'id'>) => {
-    const newSlots = [...manualSlots, { ...slot, id: Date.now() }];
+    // Extra duplicate check in App.tsx
+    const isDuplicate = manualSlots.some(s => 
+      s.date === slot.date && s.start === slot.start
+    );
+    if (isDuplicate) return;
+
+    const newSlot = { ...slot, id: Date.now() + Math.random() };
+    const newSlots = [...manualSlots, newSlot];
     setManualSlots(newSlots);
     if (profile?.id) {
       updateDoc(doc(db, 'users', profile.id), { availability: newSlots });
@@ -1337,7 +1398,7 @@ export default function App() {
   };
 
   const handleBatchAddSlots = (slotsToApply: Omit<AvailabilitySlot, 'id'>[]) => {
-    const slotsWithIds = slotsToApply.map((s, i) => ({ ...s, id: Date.now() + i }));
+    const slotsWithIds = slotsToApply.map((s, i) => ({ ...s, id: Date.now() + i + Math.random() }));
     const newSlots = [...manualSlots, ...slotsWithIds];
     setManualSlots(newSlots);
     if (profile?.id) {
@@ -1353,7 +1414,7 @@ export default function App() {
   };
 
   const handleDeleteSlot = (id: number) => {
-    const newSlots = manualSlots.filter(s => s.id !== id);
+    const newSlots = manualSlots.filter(s => String(s.id) !== String(id));
     setManualSlots(newSlots);
     if (profile?.id) {
       updateDoc(doc(db, 'users', profile.id), { availability: newSlots });
@@ -1412,8 +1473,8 @@ export default function App() {
         await addDoc(collection(db, 'notifications'), {
           studentEmail: booking.studentEmail,
           type: 'booking',
-          title: 'Session Rescheduled 📅',
-          message: `Your ${booking.subject} session with ${profile?.name || 'your tutor'} has been moved to ${date} at ${time}.${booking.amount ? ` (Paid: ₹${booking.amount})` : ''}`,
+          title: 'Session Rescheduled ðŸ“…',
+          message: `Your ${booking.subject} session with ${profile?.name || 'your tutor'} has been moved to ${date} at ${time}.${booking.amount ? ` (Paid: â‚¹${booking.amount})` : ''}`,
           time: new Date().toISOString(),
           read: false,
           link: 'my-bookings'
@@ -1504,7 +1565,7 @@ export default function App() {
                 initials: (spr?.name || b?.studentName || b?.name || 'ST').substring(0, 2).toUpperCase(),
                 online: false,
                 unread: 0,
-                lastMessage: '👋 Start a conversation...',
+                lastMessage: 'ðŸ‘‹ Start a conversation...',
                 time: 'Now',
                 messages: []
               };
@@ -1997,7 +2058,7 @@ export default function App() {
                             <Smile size={20} />
                           </button>
                           <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-4 bg-[#1A1A1E]/90 backdrop-blur-xl border border-white/10 p-2 rounded-2xl hidden group-hover:flex gap-2 shadow-2xl">
-                             {['👍', '❤️', '👏', '💡', '🔥', '🎉'].map(emoji => (
+                             {['ðŸ‘', 'â¤ï¸', 'ðŸ‘', 'ðŸ’¡', 'ðŸ”¥', 'ðŸŽ‰'].map(emoji => (
                                <button 
                                  key={emoji}
                                  onClick={() => {
@@ -2104,7 +2165,7 @@ export default function App() {
                 >
                   <div className="text-center mb-8">
                     <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <span className="text-primary text-2xl font-bold">📖</span>
+                      <span className="text-primary text-2xl font-bold">ðŸ“–</span>
                     </div>
                     <h3 className="text-2xl font-serif font-bold italic text-slate-800">Class Conducted</h3>
                     <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-2">What did you cover today?</p>
@@ -2124,6 +2185,54 @@ export default function App() {
                       />
                     </div>
                     
+                    {/* End Class Choice Modal */}
+                    <AnimatePresence>
+                      {showEndChoiceModal && (
+                        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6">
+                          <motion.div 
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
+                            onClick={() => setShowEndChoiceModal(false)}
+                          />
+                          <motion.div 
+                            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                            className="relative w-full max-w-md bg-white rounded-[2.5rem] p-10 shadow-2xl border border-slate-100 text-center"
+                          >
+                            <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-6">
+                              <LogOut size={32} className="text-primary" />
+                            </div>
+                            <h2 className="text-2xl font-black text-slate-800 tracking-tight mb-2">Finish Session?</h2>
+                            <p className="text-slate-500 font-medium mb-8 text-sm">How would you like to handle this class?</p>
+                            
+                            <div className="space-y-4">
+                              <button 
+                                onClick={() => finalizeSession('complete')}
+                                className="w-full bg-emerald-500 text-white font-black py-4 rounded-2xl hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-3 shadow-lg shadow-emerald-500/20"
+                              >
+                                <Check size={18} /> Class Conducted (Continue)
+                              </button>
+                              <button 
+                                onClick={() => finalizeSession('reschedule')}
+                                className="w-full bg-slate-900 text-white font-black py-4 rounded-2xl hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-3 shadow-xl"
+                              >
+                                <Clock size={18} /> Need to Reschedule
+                              </button>
+                              <button 
+                                onClick={() => setShowEndChoiceModal(false)}
+                                className="w-full text-slate-400 font-bold text-xs uppercase tracking-widest py-2 hover:text-slate-600 transition-colors"
+                              >
+                                Go Back
+                              </button>
+                            </div>
+                          </motion.div>
+                        </div>
+                      )}
+                    </AnimatePresence>
+
                     <button 
                       onClick={endSession}
                       className="w-full bg-primary text-white font-black py-5 rounded-2xl shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all uppercase text-xs tracking-widest"
@@ -2198,5 +2307,3 @@ export default function App() {
     </>
   );
 }
-/ /   f o r c e - r e d e p l o y - 0 4 / 2 7 / 2 0 2 6   1 6 : 5 3 : 3 3  
- 

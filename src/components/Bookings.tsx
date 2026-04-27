@@ -23,7 +23,7 @@ interface BookingsProps {
   onReschedule?: (id: any, date: string, time: string) => Promise<void>;
   onPageChange: (page: PageId) => void;
   onOpenChat?: (booking: Booking) => void;
-  initialRescheduleId?: number | null;
+  initialRescheduleId?: string | number | null;
   onClearReschedule?: () => void;
   tutorAvailability?: AvailabilitySlot[];
 }
@@ -147,9 +147,14 @@ export function Bookings({ bookings, onStatusChange, onRescheduleStart, onResche
                     <span className="text-[8px] md:text-[9px] font-bold text-primary bg-primary/5 px-1.5 py-0.5 rounded-md inline-block truncate max-w-full">
                       {booking.subject || 'General Session'}
                     </span>
+                    {(booking as any).plan && (
+                      <span className="text-[7px] md:text-[8px] font-black bg-blue-50 text-blue-600 px-2 py-0.5 rounded-md uppercase tracking-widest border border-blue-100">
+                        {(booking as any).plan}
+                      </span>
+                    )}
                     {(booking as any).type === 'demo' && (
                       <span className="text-[7px] md:text-[8px] font-black bg-accent text-white px-2.5 py-1 rounded-lg uppercase tracking-[0.1em] shadow-md border border-white/20">
-                        Free Demo Session
+                        Free Demo
                       </span>
                     )}
                   </div>
@@ -276,10 +281,24 @@ export function Bookings({ bookings, onStatusChange, onRescheduleStart, onResche
                         >
                           <Clock className="w-3.5 h-3.5" /> Join Class
                         </button>
+                      ) : isPast ? (
+                        <div className="flex flex-col sm:flex-row gap-2 w-full">
+                          <button 
+                            onClick={() => onStatusChange(booking.id, 'completed')}
+                            className="flex-1 bg-emerald-500 text-white font-bold py-2.5 rounded-xl text-[10px] hover:bg-emerald-600 transition-all active:scale-95 flex items-center justify-center gap-1.5"
+                          >
+                            <Check className="w-3.5 h-3.5" /> Mark Conducted (Continue)
+                          </button>
+                          <button 
+                            onClick={() => handleRescheduleClick(booking)}
+                            className="flex-1 bg-white border border-surface-variant text-on-surface font-bold py-2.5 rounded-xl text-[10px] hover:bg-slate-50 transition-all active:scale-95 flex items-center justify-center gap-1.5"
+                          >
+                            <Clock className="w-3.5 h-3.5" /> Reschedule
+                          </button>
+                        </div>
                       ) : (
                         <div className="flex-1 bg-slate-50 text-slate-400 font-bold py-2.5 rounded-xl text-[10px] flex items-center justify-center gap-1.5 border border-slate-100 italic">
                           <Clock className="w-3.5 h-3.5" /> {
-                            isPast ? 'Session Ended' : 
                             (isToday && diffMins > 10) ? 'Session Not Started' : 'Upcoming'
                           }
                         </div>

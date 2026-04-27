@@ -33,6 +33,7 @@ interface Note {
   id: string;
   class: string;
   subject: string;
+  topic: string;
   fileName: string;
   fileData: string; // Base64
   fileType: string;
@@ -49,6 +50,7 @@ interface Poll {
   tutorId: string;
   question: string;
   targetClass: string;
+  topic: string;
   options: { text: string; votes: string[] }[];
   allowMultiple: boolean;
   createdAt: any;
@@ -182,7 +184,7 @@ export function Notes({ notes, tutorId, tutorName }: NotesProps) {
       });
 
       setStatus('success');
-      setFormData({ class: '', subject: '', file: null, fileBase64: '' });
+      setFormData({ class: '', subject: '', topic: '', file: null, fileBase64: '' });
       setTimeout(() => {
         setStatus('idle');
         setIsAdding(false);
@@ -238,7 +240,7 @@ export function Notes({ notes, tutorId, tutorName }: NotesProps) {
         });
       });
       setStatus('success');
-      setPollFormData({ question: '', targetClass: '', options: ['', ''], allowMultiple: false });
+      setPollFormData({ question: '', targetClass: '', topic: '', options: ['', ''], allowMultiple: false });
       setTimeout(() => {
         setStatus('idle');
         setIsAddingPoll(false);
@@ -438,7 +440,7 @@ export function Notes({ notes, tutorId, tutorName }: NotesProps) {
             className="flex items-center gap-2 bg-primary text-white px-6 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest hover:scale-105 transition-all shadow-lg shadow-primary/20"
           >
             {isAdding ? <X size={16} /> : <Plus size={16} />}
-            {isAdding ? 'Close' : 'Add note to notes'}
+            {isAdding ? 'Close' : 'Add Notes'}
           </button>
         ) : (
           <button 

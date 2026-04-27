@@ -26,12 +26,14 @@ export function Profile({ onExperienceChange, user }: ProfileProps) {
     name: user?.displayName || user?.name || "Tutor",
     email: user?.email || "",
     phone: user?.phone || user?.mobile || user?.phoneNumber || "",
-    subjects: user?.qualification || "",
+    subjects: Array.isArray(user?.subjects) ? user.subjects : (typeof user?.subjects === 'string' ? user.subjects.split(',').map((s: string) => s.trim()).filter(Boolean) : []),
+    qualification: user?.qualification || "",
     bio: user?.bio || "",
     classPricing: user?.classPricing || "160",
     upiId: user?.upiId || "",
     subjectsPricing: user?.subjectsPricing || []
   });
+  const [newSubject, setNewSubject] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
@@ -40,11 +42,16 @@ export function Profile({ onExperienceChange, user }: ProfileProps) {
   useEffect(() => {
     if (user) {
       setExperience(user.experience || 'Fresher');
+      const safeSubjects = Array.isArray(user.subjects) 
+        ? user.subjects 
+        : (typeof user.subjects === 'string' ? user.subjects.split(',').map((s: string) => s.trim()).filter(Boolean) : []);
+
       setFormData({
         name: user.displayName || user.name || "Tutor",
         email: user.email || "",
         phone: user.phone || user.mobile || user.phoneNumber || "",
-        subjects: user.qualification || "",
+        subjects: safeSubjects,
+        qualification: user.qualification || "",
         bio: user.bio || "",
         classPricing: user.classPricing || "160",
         upiId: user.upiId || "",
@@ -59,7 +66,8 @@ export function Profile({ onExperienceChange, user }: ProfileProps) {
     const newErrors: Record<string, string> = {};
     if (!data.name?.trim()) newErrors.name = "Name is required";
     if (!data.phone?.trim()) newErrors.phone = "Phone number is required";
-    if (!data.subjects?.trim()) newErrors.subjects = "Qualification/subjects are required";
+    if (!data.qualification?.trim()) newErrors.qualification = "Qualification is required";
+    if (!data.subjects || data.subjects.length === 0) newErrors.subjects = "At least one teaching subject is required";
     if (!data.upiId?.trim()) {
       newErrors.upiId = "UPI ID is required";
     } else {
@@ -84,7 +92,8 @@ export function Profile({ onExperienceChange, user }: ProfileProps) {
         displayName: data.name,
         email: data.email,
         phone: data.phone,
-        qualification: data.subjects,
+        qualification: data.qualification,
+        subjects: data.subjects,
         experience: data.experience,
         bio: data.bio,
         classPricing: data.classPricing,
@@ -100,7 +109,7 @@ export function Profile({ onExperienceChange, user }: ProfileProps) {
     }
   };
 
-  const handleInputChange = (field: string, value: string) => {
+  const handleInputChange = (field: string, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
@@ -179,19 +188,16 @@ export function Profile({ onExperienceChange, user }: ProfileProps) {
         <div className="space-y-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             <div>
-              <label className="block text-[10px] font-black mb-1.5 uppercase tracking-wider text-on-surface-variant">Subjects / Qualification</label>
+              <label className="block text-[10px] font-black mb-1.5 uppercase tracking-wider text-on-surface-variant">Qualification</label>
               <div className="relative">
                 <GraduationCap className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                 <input 
                   type="text" 
-                  value={formData.subjects}
-                  onChange={(e) => {
-                    handleInputChange('subjects', e.target.value);
-                    if (errors.subjects) setErrors(prev => ({...prev, subjects: ''}));
-                  }}
-                  className={`w-full pl-12 pr-4 py-3.5 text-sm font-bold rounded-xl transition-all ${errors.subjects ? 'bg-red-50 ring-2 ring-red-500/20' : 'bg-slate-50'} border-none focus:ring-2 focus:ring-primary outline-none shadow-inner`} 
+                  value={formData.qualification}
+                  disabled
+                  className="w-full pl-12 pr-4 py-3.5 text-sm font-bold rounded-xl bg-gray-50 text-gray-400 border-none cursor-not-allowed" 
                 />
-                {errors.subjects && <p className="text-red-500 text-[10px] font-bold mt-1.5 ml-1">{errors.subjects}</p>}
+                {errors.qualification && <p className="text-red-500 text-[10px] font-bold mt-1.5 ml-1">{errors.qualification}</p>}
               </div>
             </div>
             <div>
@@ -211,10 +217,60 @@ export function Profile({ onExperienceChange, user }: ProfileProps) {
               </div>
             </div>
           </div>
+
+          <div>
+            <label className="block text-[10px] font-black mb-3 uppercase tracking-wider text-on-surface-variant">Teaching Subjects (Manage Subjects)</label>
+            <div className="flex flex-wrap gap-2 mb-3">
+              {formData.subjects.map((s: string) => (
+                <span key={s} className="px-3 py-1.5 bg-primary/10 text-primary text-[10px] font-black uppercase tracking-widest rounded-lg flex items-center gap-2 border border-primary/10">
+                  {s}
+                  <button onClick={() => {
+                    const next = formData.subjects.filter((sub: string) => sub !== s);
+                    handleInputChange('subjects', next);
+                  }} className="hover:text-red-500 transition-colors">
+                    <Save className="w-3 h-3 rotate-45" /> 
+                  </button>
+                </span>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <input 
+                type="text" 
+                value={newSubject}
+                onChange={(e) => setNewSubject(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (newSubject.trim()) {
+                      const next = [...formData.subjects, newSubject.trim()];
+                      handleInputChange('subjects', Array.from(new Set(next)));
+                      setNewSubject('');
+                    }
+                  }
+                }}
+                placeholder="Type a subject and press Enter..."
+                className="flex-1 px-4 py-3 text-sm font-bold rounded-xl bg-slate-50 border-none focus:ring-2 focus:ring-primary outline-none shadow-inner"
+              />
+              <button 
+                type="button"
+                onClick={() => {
+                  if (newSubject.trim()) {
+                    const next = [...formData.subjects, newSubject.trim()];
+                    handleInputChange('subjects', Array.from(new Set(next)));
+                    setNewSubject('');
+                  }
+                }}
+                className="px-6 py-3 bg-primary text-white text-[10px] font-black uppercase tracking-widest rounded-xl hover:scale-105 active:scale-95 transition-all"
+              >
+                Add
+              </button>
+            </div>
+            {errors.subjects && <p className="text-red-500 text-[10px] font-bold mt-1.5 ml-1">{errors.subjects}</p>}
+          </div>
           
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             <div>
-              <label className="block text-[10px] font-black mb-1.5 uppercase tracking-wider text-on-surface-variant">Class Pricing (Per Subject)</label>
+              <label className="block text-[10px] font-black mb-1.5 uppercase tracking-wider text-on-surface-variant">Class Pricing (min per subject)</label>
               <div className="relative">
                 <IndianRupee className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                 <input 
@@ -225,9 +281,7 @@ export function Profile({ onExperienceChange, user }: ProfileProps) {
                   className="w-full pl-12 pr-4 py-3.5 text-sm font-bold rounded-xl bg-slate-50 border-none focus:ring-2 focus:ring-primary outline-none shadow-inner" 
                 />
               </div>
-              <p className="text-[10px] font-bold text-slate-400 mt-2 leading-relaxed">
-                * Min class timings: 1 hr or 1:30 hr. If student demands extra 30mins-1hr based on monthly pricing, provide a 10% increase.
-              </p>
+
             </div>
             <div>
               <label className="block text-[10px] font-black mb-1.5 uppercase tracking-wider text-on-surface-variant">UPI ID *</label>
@@ -261,7 +315,7 @@ export function Profile({ onExperienceChange, user }: ProfileProps) {
           </div>
         </div>
 
-        {(user?.targetClasses?.includes('Graduate') || formData.subjects?.toLowerCase().includes('graduate')) && (
+        {(user?.targetClasses?.includes('Graduate') || (Array.isArray(formData.subjects) && formData.subjects.some((s: string) => s.toLowerCase().includes('graduate')))) && (
           <div className="pt-6 border-t border-slate-50">
 
               <label className="block text-[10px] font-black mb-3 uppercase tracking-wider text-primary">Subject-Specific Pricing (Graduate Courses)</label>

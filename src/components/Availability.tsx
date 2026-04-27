@@ -2,7 +2,7 @@ import { Clock, AlertCircle, CheckCircle2, BookOpen, Video, Plus, Edit2, Trash2,
 import { AvailabilitySlot, Booking } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 
 interface AvailabilityProps {
   slots: AvailabilitySlot[];
@@ -47,7 +47,8 @@ function formatTime(t: string) {
 function formatMins(m: number) {
   let h = Math.floor(m / 60);
   const mm = m % 60;
-  const ampm = h >= 12 ? 'PM' : 'AM';
+  // Correctly handle AM/PM for midnight (24h)
+  const ampm = (h % 24) >= 12 ? 'PM' : 'AM';
   h = h % 12 || 12;
   return `${h}:${mm.toString().padStart(2, '0')} ${ampm}`;
 }
@@ -87,25 +88,25 @@ function durationLabel(start: string, end: string) {
   return m > 0 ? `${h}h ${m}m` : `${h}h`;
 }
 
-function parseTime(timeStr: string) {
-  if (!timeStr) return 0;
-  const match = timeStr.match(/(\d+):(\d+)\s*(AM|PM)?/i);
-  if (!match) {
-    const parts = timeStr.split(':');
-    if (parts.length >= 2) {
-      const h = parseInt(parts[0], 10);
-      const m = parseInt(parts[1], 10);
-      if (!isNaN(h) && !isNaN(m)) return h * 60 + m;
-    }
-    return 0;
-  }
-  let [_, h, m, ampm] = match;
-  let hours = parseInt(h, 10);
-  if (ampm) {
+function parseTime(t: string) {
+  if (!t) return 0;
+  // Try AM/PM format (e.g. "10:00 AM")
+  const ampmMatch = t.match(/(\d+):(\d+)\s*(AM|PM)/i);
+  if (ampmMatch) {
+    let [_, h, m, ampm] = ampmMatch;
+    let hours = parseInt(h);
     if (ampm.toUpperCase() === 'PM' && hours < 12) hours += 12;
     if (ampm.toUpperCase() === 'AM' && hours === 12) hours = 0;
+    return hours * 60 + parseInt(m);
   }
-  return hours * 60 + parseInt(m, 10);
+  // Fallback to 24h format (e.g. "14:30")
+  const parts = t.split(':');
+  if (parts.length >= 2) {
+    const h = parseInt(parts[0]);
+    const m = parseInt(parts[1]);
+    if (!isNaN(h) && !isNaN(m)) return h * 60 + m;
+  }
+  return 0;
 }
 
 function getSlotMins(t: string) {
@@ -116,6 +117,7 @@ export function Availability({ slots, bookings, onAddSlot, onDeleteSlot, onEditS
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentSlot, setCurrentSlot] = useState<Partial<AvailabilitySlot> | null>(null);
   const [editId, setEditId] = useState<number | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   const [weekOffset, setWeekOffset] = useState(0);
   
@@ -139,70 +141,68 @@ export function Availability({ slots, bookings, onAddSlot, onDeleteSlot, onEditS
     });
   };
 
-  const currentWeekDays = getWeekData(weekOffset);
+  const currentWeekDays = useMemo(() => getWeekData(weekOffset), [weekOffset]);
   const weekRangeLabel = `${currentWeekDays[0].displayDate} - ${currentWeekDays[currentWeekDays.length - 1].displayDate}`;
 
-  const activeBookings = bookings.filter(b => ['confirmed', 'pending', 'live', 'rescheduled'].includes(b.status));
+  const visibleSlotsByDay = useMemo(() => {
+    const slotsByDay: Record<string, any[]> = {};
+    const activeBookings = bookings.filter(b => ['confirmed', 'pending', 'live', 'rescheduled'].includes(b.status));
 
+    currentWeekDays.forEach(dayInfo => {
+      const dayName = dayInfo.name;
+      const dateStr = dayInfo.date;
+      
+      const dayBookings = activeBookings.filter(b => {
+        if (!b.date) return false;
+        try {
+          const bDate = b.date.includes('-') ? b.date : new Date(b.date).toISOString().split('T')[0];
+          return bDate === dateStr;
+        } catch (e) {
+          return false;
+        }
+      });
+
+      const processed: any[] = [];
+      const daySlotsRaw = slots.filter(s => s.day?.toLowerCase() === dayName.toLowerCase());
+      
+      daySlotsRaw.forEach(s => {
+        const sStartMins = parseTime(s.start);
+        const sEndMins = parseTime(s.end);
+
+        for (let m = sStartMins; m < sEndMins; m += 60) {
+          const slotTimeStr = formatMins(m);
+          const booking = dayBookings.find(b => {
+            const bStart = parseTime(b.time);
+            const bDurMatch = b.duration?.toString().match(/([\d.]+)/);
+            const bDurMins = bDurMatch ? parseFloat(bDurMatch[1]) * 60 : 60;
+            return m >= bStart && m < (bStart + bDurMins);
+          });
+
+          processed.push({
+            ...s,
+            start: slotTimeStr,
+            end: formatMins(m + 60),
+            type: 'custom',
+            displayStatus: booking ? (booking.status === 'pending' ? 'pending' : (booking.type === 'demo' ? 'demo' : 'regular')) : 'free',
+            booked: !!booking,
+            studentName: booking?.studentName || booking?.name,
+            subject: booking?.subject
+          });
+        }
+      });
+
+      if (processed.length) {
+        slotsByDay[dateStr] = processed.sort((a, b) => parseTime(a.start) - parseTime(b.start));
+      }
+    });
+    return slotsByDay;
+  }, [currentWeekDays, slots, bookings]);
+
+  const allVisibleSlots = useMemo(() => Object.values(visibleSlotsByDay).flat(), [visibleSlotsByDay]);
+
+  const activeBookings = bookings.filter(b => ['confirmed', 'pending', 'live', 'rescheduled'].includes(b.status));
   const totalDemos = activeBookings.filter(b => b.type === 'demo').length;
   const totalRegular = activeBookings.filter(b => b.type === 'paid').length;
-
-  const visibleSlotsByDay: Record<string, any[]> = {};
-
-  currentWeekDays.forEach(dayInfo => {
-    const dayName = dayInfo.name;
-    const dateStr = dayInfo.date;
-    
-    // Find relevant bookings for this day to check for conflicts
-    const dayBookings = activeBookings.filter(b => {
-      if (!b.date) return false;
-      try {
-        const bDate = b.date.includes('-') ? b.date : new Date(b.date).toISOString().split('T')[0];
-        return bDate === dateStr;
-      } catch (e) {
-        return false;
-      }
-    });
-
-    const processed: any[] = [];
-    
-    // Process manual slots and check for bookings within them
-    const daySlotsRaw = slots.filter(s => s.day?.toLowerCase() === dayName.toLowerCase());
-    daySlotsRaw.forEach(s => {
-      const sStartMins = parseTime(s.start);
-      const sEndMins = parseTime(s.end);
-
-      // Expand into 1-hour intervals
-      for (let m = sStartMins; m < sEndMins; m += 60) {
-        const slotTimeStr = formatMins(m);
-        
-        // Check if this specific hour is covered by a booking
-        const booking = dayBookings.find(b => {
-          const bStart = parseTime(b.time);
-          const bDurMatch = b.duration?.toString().match(/([\d.]+)/);
-          const bDurMins = bDurMatch ? parseFloat(bDurMatch[1]) * 60 : 60;
-          return m >= bStart && m < (bStart + bDurMins);
-        });
-
-        processed.push({
-          ...s,
-          start: slotTimeStr,
-          end: formatMins(m + 60),
-          type: 'custom',
-          displayStatus: booking ? (booking.status === 'pending' ? 'pending' : (booking.type === 'demo' ? 'demo' : 'regular')) : 'free',
-          booked: !!booking,
-          studentName: booking?.studentName || booking?.name,
-          subject: booking?.subject
-        });
-      }
-    });
-
-    if (processed.length) {
-      visibleSlotsByDay[dateStr] = processed.sort((a, b) => getSlotMins(a.start) - getSlotMins(b.start));
-    }
-  });
-
-  const allVisibleSlots = Object.values(visibleSlotsByDay).flat();
 
   const handleOpenAdd = () => {
     const todayDate = new Date().toISOString().split('T')[0];
@@ -224,25 +224,49 @@ export function Availability({ slots, bookings, onAddSlot, onDeleteSlot, onEditS
       alert("Please fill all fields");
       return;
     }
-    const sVal = currentSlot.start;
-    const eVal = currentSlot.end;
+    const sVal = parseTime(currentSlot.start);
+    const eVal = parseTime(currentSlot.end);
     if (sVal >= eVal) {
       alert("End time must be after start time");
       return;
     }
-    if (editId) {
+
+    // Prevention of duplicate start times
+    const isDuplicate = slots.some(s => 
+      s.day === currentSlot.day && 
+      s.date === currentSlot.date && 
+      s.start === currentSlot.start && 
+      s.id !== editId
+    );
+
+    if (isDuplicate) {
+      alert(`The slot starting at ${formatMins(parseTime(currentSlot.start))} already exists for this day. Please choose a different time.`);
+      return;
+    }
+
+    // Show feedback on the button first
+    setIsSaving(true);
+    const wasEditing = !!editId;
+    
+    // IMMEDIATELY process data so database updates right away
+    if (wasEditing && editId) {
       onEditSlot(editId, currentSlot);
     } else {
       onAddSlot(currentSlot as Omit<AvailabilitySlot, 'id'>);
     }
-    setIsModalOpen(false);
-    setEditId(null);
+
+    // Briefly show the "Saved!" state then close the UI
+    setTimeout(() => {
+      setIsModalOpen(false);
+      setIsSaving(false);
+      setEditId(null);
+    }, 600);
   };
 
   return (
     <>
       <div className="space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="page-title">Availability & Schedule</h1>
           <p className="text-[11px] font-bold text-on-surface-variant opacity-60 mt-0.5">
@@ -303,20 +327,15 @@ export function Availability({ slots, bookings, onAddSlot, onDeleteSlot, onEditS
                 dayInfo.isToday ? "border-primary/40 ring-4 ring-primary/5" : "border-slate-100"
               )}
             >
-              <div className={cn("p-4 border-b flex flex-col gap-0.5 relative", color.bg, color.border)}>
-                <div className="flex items-center justify-between">
-                  <span className={cn("text-[9px] font-black uppercase tracking-[0.1em]", color.label)}>
-                    {dayInfo.name}
-                  </span>
-                  {dayInfo.isToday && (
-                    <span className="bg-primary text-white text-[7px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest">
-                       Today
-                    </span>
-                  )}
-                </div>
-                <span className="text-lg font-black text-slate-800 tracking-tight">
-                  {dayInfo.displayDate}
+              <div className={cn("p-4 border-b flex items-center justify-between relative", color.bg, color.border)}>
+                <span className={cn("text-sm font-black uppercase tracking-tight", color.label)}>
+                  {dayInfo.name} <span className="opacity-50 ml-1">{dayInfo.displayDate}</span>
                 </span>
+                {dayInfo.isToday && (
+                  <span className="bg-primary text-white text-[7px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest">
+                     Today
+                  </span>
+                )}
                 {dayInfo.isToday && <div className="absolute bottom-0 left-0 w-full h-[2px] bg-primary"></div>}
               </div>
 
@@ -360,7 +379,7 @@ export function Availability({ slots, bookings, onAddSlot, onDeleteSlot, onEditS
                                  onClick={() => onDeleteSlot(slot.id)}
                                  className="p-1 hover:bg-rose-50 rounded-md text-red-500 transition-all"
                                >
-                                 <Trash2 size={10} />
+                                 <Trash2 size={14} />
                                </button>
                              </div>
                            )}
@@ -452,28 +471,38 @@ export function Availability({ slots, bookings, onAddSlot, onDeleteSlot, onEditS
                   value={currentSlot?.day || ''}
                   onChange={(e) => setCurrentSlot({...currentSlot, day: e.target.value})}
                 >
-                  {dayOrder.map(d => <option key={d} value={d}>{d}</option>)}
+                  {currentWeekDays.map(dayInfo => (
+                    <option key={dayInfo.date} value={dayInfo.name}>
+                      {dayInfo.name} - {dayInfo.displayDate}
+                    </option>
+                  ))}
                 </select>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Start Time</label>
-                  <input 
-                    type="time" 
-                    className="w-full bg-slate-50 border-none rounded-2xl py-3 px-4 text-sm font-bold focus:ring-2 ring-primary/20 outline-none"
-                    value={currentSlot?.start || ''}
-                    onChange={(e) => setCurrentSlot({...currentSlot, start: e.target.value})}
-                  />
+                  <div className="flex items-center gap-2">
+                    <input 
+                      type="time" 
+                      className="w-full bg-slate-50 border-none rounded-2xl py-3 px-4 text-sm font-bold focus:ring-2 ring-primary/20 outline-none"
+                      value={currentSlot?.start || ''}
+                      onChange={(e) => setCurrentSlot({...currentSlot, start: e.target.value})}
+                    />
+                    <span className="text-[10px] font-black text-primary/40 uppercase">{currentSlot?.start ? (parseTime(currentSlot.start) >= 720 ? 'PM' : 'AM') : '--'}</span>
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">End Time</label>
-                  <input 
-                    type="time" 
-                    className="w-full bg-slate-50 border-none rounded-2xl py-3 px-4 text-sm font-bold focus:ring-2 ring-primary/20 outline-none"
-                    value={currentSlot?.end || ''}
-                    onChange={(e) => setCurrentSlot({...currentSlot, end: e.target.value})}
-                  />
+                  <div className="flex items-center gap-2">
+                    <input 
+                      type="time" 
+                      className="w-full bg-slate-50 border-none rounded-2xl py-3 px-4 text-sm font-bold focus:ring-2 ring-primary/20 outline-none"
+                      value={currentSlot?.end || ''}
+                      onChange={(e) => setCurrentSlot({...currentSlot, end: e.target.value})}
+                    />
+                    <span className="text-[10px] font-black text-primary/40 uppercase">{currentSlot?.end ? (parseTime(currentSlot.end) >= 720 ? 'PM' : 'AM') : '--'}</span>
+                  </div>
                 </div>
               </div>
 
@@ -484,12 +513,25 @@ export function Availability({ slots, bookings, onAddSlot, onDeleteSlot, onEditS
                 >
                   Cancel
                 </button>
-                <button 
+                 <button 
                   onClick={handleSave}
-                  className="flex-1 py-4 bg-primary text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                  disabled={isSaving}
+                  className={cn(
+                    "flex-1 py-4 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg transition-all flex items-center justify-center gap-2",
+                    isSaving ? "bg-emerald-500 shadow-emerald-500/20" : "bg-primary shadow-primary/20 hover:scale-[1.02] active:scale-[0.98]"
+                  )}
                 >
-                  <Save size={14} />
-                  Save Slot
+                  {isSaving ? (
+                    <>
+                      <CheckCircle2 size={14} />
+                      Saved!
+                    </>
+                  ) : (
+                    <>
+                      <Save size={14} />
+                      Save Slot
+                    </>
+                  )}
                 </button>
               </div>
             </div>

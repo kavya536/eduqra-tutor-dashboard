@@ -39,7 +39,7 @@ export function Pricing({ experience, tutorId, targetClasses }: PricingProps) {
   const [entries, setEntries] = useState<PricingEntry[]>([]);
   const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [loading, setLoading] = useState(true);
-  const [isAddingCustom, setIsAddingCustom] = useState(false);
+  const [isAddingCustom, setIsAddingCustom] = useState<string | null>(null);
   const [customSubject, setCustomSubject] = useState('');
   const [existingCustoms, setExistingCustoms] = useState<string[]>([]);
 
@@ -48,7 +48,7 @@ export function Pricing({ experience, tutorId, targetClasses }: PricingProps) {
   
   const isGraduate = rawClasses.includes('Graduate');
   const isIntermediate = rawClasses.includes('Intermediate');
-  const isSchool = rawClasses.includes('Primary') || rawClasses.includes('Middle') || rawClasses.includes('Nursery') || rawClasses.includes('Secondary');
+  const isSchool = rawClasses.includes('Primary') || rawClasses.includes('Middle') || rawClasses.includes('Nursery') || rawClasses.includes('Secondary') || rawClasses.includes('1-5') || rawClasses.includes('6-10');
 
   useEffect(() => {
     if (!tutorId) return;
@@ -134,16 +134,20 @@ export function Pricing({ experience, tutorId, targetClasses }: PricingProps) {
     if (isIntermediate) return ["Intermediate (11th & 12th)"];
     if (isSchool) return ["Secondary (Upto 10th)"];
     
-    return Object.keys(SUBJECT_LISTS);
+    return ["Secondary (Upto 10th)", "Intermediate (11th & 12th)", "Graduate & Professional"];
   };
 
   const handleAddCustom = () => {
     if (!customSubject.trim()) return;
-    if (!existingCustoms.includes(customSubject)) {
-      setExistingCustoms([...existingCustoms, customSubject]);
+    const newSub = customSubject.trim();
+    if (!existingCustoms.includes(newSub)) {
+      setExistingCustoms([...existingCustoms, newSub]);
+    }
+    if (isAddingCustom) {
+      updateEntry(isAddingCustom, { subject: newSub });
     }
     setCustomSubject('');
-    setIsAddingCustom(false);
+    setIsAddingCustom(null);
   };
 
   const allowedCategories = getAllowedCategories();
@@ -220,7 +224,13 @@ export function Pricing({ experience, tutorId, targetClasses }: PricingProps) {
                   <div className="flex gap-2">
                     <select 
                       value={entry.subject}
-                      onChange={(e) => updateEntry(entry.id, { subject: e.target.value })}
+                      onChange={(e) => {
+                        if (e.target.value === 'ADD_CUSTOM') {
+                          setIsAddingCustom(entry.id);
+                        } else {
+                          updateEntry(entry.id, { subject: e.target.value });
+                        }
+                      }}
                       className="flex-1 bg-slate-50 border-2 border-slate-100 p-4 pr-12 rounded-2xl font-black text-sm text-slate-800 outline-none focus:border-[#0047AB] focus:bg-white transition-all appearance-none cursor-pointer"
                     >
                       <option value="" disabled>Select Subject...</option>
@@ -234,10 +244,11 @@ export function Pricing({ experience, tutorId, targetClasses }: PricingProps) {
                           {existingCustoms.map(s => <option key={s} value={s} className="text-slate-700">{s}</option>)}
                         </optgroup>
                       )}
+                      <option value="ADD_CUSTOM" className="text-[#0047AB] font-bold italic">+ Add New Subject...</option>
                     </select>
                     <button 
                       type="button"
-                      onClick={() => setIsAddingCustom(true)}
+                      onClick={() => setIsAddingCustom(entry.id)}
                       className="p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl hover:border-[#0047AB] transition-all text-slate-400 hover:text-[#0047AB]"
                       title="Add Custom Subject"
                     >
@@ -250,11 +261,11 @@ export function Pricing({ experience, tutorId, targetClasses }: PricingProps) {
 
               {/* Custom Subject Modal/Input */}
               <AnimatePresence>
-                {isAddingCustom && (
+                {isAddingCustom === entry.id && (
                   <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="bg-[#0047AB]/5 p-4 rounded-2xl border border-[#0047AB]/10 space-y-3">
                     <div className="flex items-center justify-between">
                       <span className="text-[9px] font-black text-[#0047AB] uppercase tracking-widest">New Custom Subject</span>
-                      <button onClick={() => setIsAddingCustom(false)} className="text-slate-400 hover:text-rose-500"><X size={14} /></button>
+                      <button onClick={() => setIsAddingCustom(null)} className="text-slate-400 hover:text-rose-500"><X size={14} /></button>
                     </div>
                     <div className="flex gap-2">
                       <input 
@@ -340,7 +351,7 @@ export function Pricing({ experience, tutorId, targetClasses }: PricingProps) {
               )}
               {status === 'error' && (
                 <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="flex items-center justify-center gap-2 text-[9px] font-black text-rose-600 uppercase mb-3 bg-rose-50 py-2 rounded-xl">
-                  <AlertCircle size={12} /> Missing Required Logic
+                  <AlertCircle size={12} /> Add at least one subject to update
                 </motion.div>
               )}
               </AnimatePresence>
