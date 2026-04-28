@@ -143,13 +143,50 @@ export function Chat({
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex justify-between items-center mb-0.5 md:mb-1">
-                    <p className="font-black text-xs md:text-sm truncate text-on-surface">{contact.name || contact.id}</p>
-                    <span className="status-label opacity-60">
-                      {contact.messages.length > 0 
-                        ? (contact.messages[contact.messages.length - 1]?.time || "Now") 
-                        : ((contact as any).time || "")}
-                    </span>
+                  <div className="flex justify-between items-center mb-0.5 md:mb-1 group/header">
+                    <div className="flex flex-col gap-0.5 min-w-0 pr-2">
+                       <p className="font-black text-xs md:text-sm truncate text-on-surface">{contact.name || contact.id}</p>
+                       <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className={`text-[8px] font-black uppercase tracking-wider px-1 rounded ${
+                             (contact as any).subscriptionTier === 'premium' ? 'bg-amber-100 text-amber-700' :
+                             (contact as any).subscriptionTier === 'standard' ? 'bg-blue-100 text-blue-700' :
+                             'bg-slate-100 text-slate-600'
+                          }`}>
+                             {((contact as any).subscriptionTier || 'base')} Plan
+                          </span>
+                          <span className={cn(
+                             "text-[8px] font-black uppercase tracking-wider px-1 rounded",
+                             (contact as any).isDemo ? "bg-purple-100 text-purple-700" : "bg-emerald-100 text-emerald-700"
+                          )}>
+                             {(contact as any).isDemo ? "Demo Class" : "Regular Class"}
+                          </span>
+                          {!(contact as any).isDemo && (contact as any).isPaid && (
+                            <span className="text-[8px] font-bold text-emerald-600 flex items-center gap-0.5">
+                               <Check size={8} /> Amount is paid
+                            </span>
+                          )}
+                       </div>
+                    </div>
+                    <div className="flex flex-col items-end gap-1 shrink-0">
+                       <button 
+                         onClick={(e) => {
+                            e.stopPropagation();
+                            if (window.confirm('Remove this student profile?')) {
+                               const el = e.currentTarget.closest('button');
+                               if (el) el.style.display = 'none';
+                            }
+                         }}
+                         className="opacity-0 group-hover/header:opacity-100 p-1 hover:bg-rose-100 text-rose-500 rounded transition-all"
+                         title="Delete Student Profile"
+                       >
+                         <Trash2 size={12} />
+                       </button>
+                       <span className="status-label opacity-60 text-[9px]">
+                         {contact.messages.length > 0 
+                           ? (contact.messages[contact.messages.length - 1]?.time || "Now") 
+                           : ((contact as any).time || "")}
+                       </span>
+                    </div>
                   </div>
                   <div className="flex items-center justify-between">
                     <p className={cn(

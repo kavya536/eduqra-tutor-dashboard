@@ -1529,8 +1529,9 @@ export default function App() {
            
            let bestName = (spr?.name && spr.name !== 'Student') ? spr.name : c.name;
            // Fallback to bookings again just in case during render
+           const studentBookings = bookings.filter(bk => (bk.studentEmail || '').toLowerCase().trim() === email);
            if (bestName === 'Student' || bestName === 'Unknown') {
-             const b = bookings.find(bk => (bk.studentEmail || '').toLowerCase().trim() === email);
+             const b = studentBookings[0];
              if (b && b.name !== 'Student') bestName = b.name;
            }
 
@@ -1538,7 +1539,10 @@ export default function App() {
              ...c,
              name: bestName,
              avatar: spr?.avatar || spr?.profileImage || c.avatar || '',
-             initials: (bestName && bestName !== 'Student' && !bestName.includes('@') ? bestName : 'ST').substring(0, 2).toUpperCase()
+             initials: (bestName && bestName !== 'Student' && !bestName.includes('@') ? bestName : 'ST').substring(0, 2).toUpperCase(),
+             subscriptionTier: spr?.subscription?.tier || 'free',
+             isDemo: studentBookings.some(b => b.type === 'demo' || b.plan === 'Demo'),
+             isPaid: studentBookings.some(b => b.type === 'paid' && b.paidAt)
            };
         });
 
@@ -1555,7 +1559,8 @@ export default function App() {
               return hasActiveBooking && !hasExistingChat;
             })
             .map(email => {
-              const b = bookings.find(b => b.studentEmail === email);
+              const studentBookings = bookings.filter(b => b.studentEmail === email);
+              const b = studentBookings[0];
               const spr = studentProfiles[email];
               return {
                 id: `${profile.id}_${email?.replace(/\./g, '_')}`,
@@ -1563,9 +1568,12 @@ export default function App() {
                 avatar: spr?.avatar || spr?.profileImage || '',
                 studentEmail: email,
                 initials: (spr?.name || b?.studentName || b?.name || 'ST').substring(0, 2).toUpperCase(),
+                subscriptionTier: spr?.subscription?.tier || 'free',
+                isDemo: studentBookings.some(b => b.type === 'demo' || b.plan === 'Demo'),
+                isPaid: studentBookings.some(b => b.type === 'paid' && b.paidAt),
                 online: false,
                 unread: 0,
-                lastMessage: 'ðŸ‘‹ Start a conversation...',
+                lastMessage: '👋 Start a conversation...',
                 time: 'Now',
                 messages: []
               };
