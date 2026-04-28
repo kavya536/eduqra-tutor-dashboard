@@ -3,8 +3,7 @@ import { useState, FormEvent, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { auth } from '../firebase';
 import { signInWithEmailAndPassword } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '../firebase';
+
 
 interface LoginProps {
   onLogin: () => void;
@@ -48,21 +47,11 @@ export function Login({ onLogin, onSwitchToRegister, onReapply }: LoginProps) {
       const emailRegex = /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i;
       if (!emailRegex.test(email)) throw new Error("Please enter a valid email address.");
       
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      const uid = userCredential.user.uid;
-      const userDocSnap = await getDoc(doc(db, 'users', uid));
-      
-      if (userDocSnap.exists()) {
-        const profile = userDocSnap.data();
-        if (profile.status === 'pending' || profile.status === 'rejected') {
-          onLogin();
-          return;
-        }
-      }
-      onLogin(); 
+      await signInWithEmailAndPassword(auth, email, password);
+      // App.tsx's onAuthStateChanged will handle the rest of the flow,
+      // including checking profile existence and setting the appropriate view.
     } catch (err: any) {
       setError(mapAuthError(err.code) || err.message);
-    } finally {
       setIsLoggingIn(false);
     }
   };

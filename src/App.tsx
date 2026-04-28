@@ -392,6 +392,14 @@ export default function App() {
       setNotes(list);
     }, (err) => console.error("Notes Sync Error:", err));
 
+    return () => {
+      unsubBookings();
+      unsubChats();
+      unsubNotifs();
+      unsubNotes();
+    };
+  }, [profile?.id, studentProfiles]);
+
   // 5. System Profile Guard Notification
   useEffect(() => {
     if (!profile?.id) return;
@@ -414,15 +422,7 @@ export default function App() {
         setNotifications(prev => [setupNotif, ...prev]);
       }
     }
-  }, [profile, notifications.length]);
-
-  return () => {
-    unsubBookings();
-    unsubChats();
-    unsubNotifs();
-    unsubNotes();
-  };
-}, [profile?.id, studentProfiles]);
+  }, [profile?.id, notifications.length]);
 
   // Fetch student profiles for all relevant emails
   useEffect(() => {
@@ -1756,6 +1756,14 @@ export default function App() {
           <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 text-center">
             <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mb-6 mx-auto"></div>
             <p className="label-caps opacity-40 animate-pulse tracking-widest font-black uppercase text-xs">Waiting for database synchronization...</p>
+            <button 
+              onClick={() => {
+                setView('register');
+              }} 
+              className="mt-8 text-primary/80 hover:text-primary underline text-[10px] font-black uppercase tracking-widest transition-colors"
+            >
+              Taking too long? Return to Registration
+            </button>
           </div>
         );
       }
