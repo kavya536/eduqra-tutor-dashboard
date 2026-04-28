@@ -267,40 +267,44 @@ export function Bookings({ bookings, onStatusChange, onRescheduleStart, onResche
                   const isToday = now.toDateString() === sessionStart.toDateString();
 
                   return (
-                    <div className="flex flex-col sm:flex-row gap-2">
-                      <button 
-                        onClick={() => onOpenChat?.(booking)}
-                        className="flex-1 bg-primary/5 text-primary font-bold py-2.5 rounded-xl text-[10px] hover:bg-primary/10 transition-all active:scale-95 flex items-center justify-center gap-1.5"
-                      >
-                        <MessageSquare className="w-3.5 h-3.5" /> Chat
-                      </button>
-                      {isActive ? (
+                    <div className="flex flex-col gap-2">
+                      <div className="flex flex-col sm:flex-row gap-2">
                         <button 
-                          onClick={() => onPageChange('live-class')}
-                          className="flex-1 bg-primary text-white font-bold py-2.5 rounded-xl text-[10px] hover:bg-primary/90 transition-all active:scale-95 flex items-center justify-center gap-2 shadow-lg shadow-primary/20 animate-pulse"
+                          onClick={() => onOpenChat?.(booking)}
+                          className="flex-1 bg-primary/5 text-primary font-bold py-2.5 rounded-xl text-[10px] hover:bg-primary/10 transition-all active:scale-95 flex items-center justify-center gap-1.5"
                         >
-                          <Clock className="w-3.5 h-3.5" /> Join Class
+                          <MessageSquare className="w-3.5 h-3.5" /> Chat
                         </button>
-                      ) : isPast ? (
-                        <div className="flex flex-col sm:flex-row gap-2 w-full">
+                        {isActive ? (
+                          <button 
+                            onClick={() => onPageChange('live-class')}
+                            className="flex-1 bg-primary text-white font-bold py-2.5 rounded-xl text-[10px] hover:bg-primary/90 transition-all active:scale-95 flex items-center justify-center gap-2 shadow-lg shadow-primary/20 animate-pulse"
+                          >
+                            <Clock className="w-3.5 h-3.5" /> Join Class
+                          </button>
+                        ) : !isPast && (
+                          <div className="flex-1 bg-slate-50 text-slate-400 font-bold py-2.5 rounded-xl text-[10px] flex items-center justify-center gap-1.5 border border-slate-100 italic">
+                            <Clock className="w-3.5 h-3.5" /> {
+                              (isToday && diffMins > 10) ? 'Session Not Started' : 'Upcoming'
+                            }
+                          </div>
+                        )}
+                      </div>
+                      
+                      {isPast && (
+                        <div className="flex flex-col gap-2 w-full mt-1">
                           <button 
                             onClick={() => onStatusChange(booking.id, 'completed')}
-                            className="flex-1 bg-emerald-500 text-white font-bold py-2.5 rounded-xl text-[10px] hover:bg-emerald-600 transition-all active:scale-95 flex items-center justify-center gap-1.5"
+                            className="w-full bg-emerald-500 text-white font-bold py-3 rounded-xl text-[10px] hover:bg-emerald-600 transition-all active:scale-95 flex items-center justify-center gap-1.5 shadow-sm"
                           >
                             <Check className="w-3.5 h-3.5" /> Mark Conducted (Continue)
                           </button>
                           <button 
                             onClick={() => handleRescheduleClick(booking)}
-                            className="flex-1 bg-white border border-surface-variant text-on-surface font-bold py-2.5 rounded-xl text-[10px] hover:bg-slate-50 transition-all active:scale-95 flex items-center justify-center gap-1.5"
+                            className="w-full bg-white border border-surface-variant text-on-surface font-bold py-2.5 rounded-xl text-[10px] hover:bg-slate-50 transition-all active:scale-95 flex items-center justify-center gap-1.5"
                           >
                             <Clock className="w-3.5 h-3.5" /> Reschedule
                           </button>
-                        </div>
-                      ) : (
-                        <div className="flex-1 bg-slate-50 text-slate-400 font-bold py-2.5 rounded-xl text-[10px] flex items-center justify-center gap-1.5 border border-slate-100 italic">
-                          <Clock className="w-3.5 h-3.5" /> {
-                            (isToday && diffMins > 10) ? 'Session Not Started' : 'Upcoming'
-                          }
                         </div>
                       )}
                     </div>
