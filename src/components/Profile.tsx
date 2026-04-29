@@ -285,12 +285,9 @@ export function Profile({ onExperienceChange, user }: ProfileProps) {
                   className="w-full pl-12 pr-4 py-3.5 text-sm font-bold rounded-xl bg-slate-50 border-none focus:ring-2 focus:ring-primary outline-none shadow-inner" 
                 />
               </div>
-              <div className="mt-2 ml-1 flex flex-col gap-1">
-                <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest">
-                  Student Viewing Price: ₹{Math.ceil((parseFloat(formData.classPricing) || 0) * 1.17)}/hr
-                </p>
-                <p className="text-[8px] font-bold text-slate-400 leading-tight italic">
-                  * Note: This is a general starting amount for student visibility. Specific subject pricing can be managed in the Financials section.
+              <div className="mt-2 ml-1">
+                <p className="text-[9px] font-bold text-slate-400 leading-tight italic">
+                  * Note: This is a general starting amount for student visibility. A platform fee of 17% will be added to your base price. Specific subject pricing can be managed in the Financials section.
                 </p>
               </div>
             </div>

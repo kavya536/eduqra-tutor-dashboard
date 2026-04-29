@@ -641,7 +641,7 @@ export function Registration({
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
                       <label className="label-caps ml-2">Highest Qualification <span className="text-rose-500">*</span></label>
-                      <input name="qualification-field" type="text" className={cn("input-field", submitted && formErrors.qualification && "border-rose-300")} value={formData.qualification} onChange={handleInputChange} required />
+                      <input name="qualification-field" type="text" placeholder="e.g. B-Tech, M-Tech, PhD, Degree etc." className={cn("input-field", submitted && formErrors.qualification && "border-rose-300")} value={formData.qualification} onChange={handleInputChange} required />
                       {submitted && formErrors.qualification && <p className="text-[10px] text-rose-500 font-bold ml-2">{formErrors.qualification}</p>}
                     </div>
                     <div className="space-y-2">
