@@ -57,57 +57,39 @@ export function Registration({
 
   // Form State
   const [formData, setFormData] = useState<any>({
-    name: currentUser?.name || currentUser?.displayName || '',
-    email: initialEmail || '',
-    phone: currentUser?.phone || '',
+    name: '',
+    email: '',
+    phone: '',
     password: '',
-    qualification: currentUser?.qualification || '',
-    experience: currentUser?.experience || 'Fresher',
-    targetClasses: currentUser?.targetClasses || '',
+    qualification: '',
+    experience: 'Fresher',
+    targetClasses: '',
     location: null
   });
 
   const [existingTutorData, setExistingTutorData] = useState<any>(null);
   const [isCheckingEmail, setIsCheckingEmail] = useState(false);
 
-  // Sync form data
-  useEffect(() => {
-    if (currentUser) {
-      setFormData(prev => ({
-        ...prev,
-        name: currentUser.name || '',
-        email: initialEmail || '',
-        phone: currentUser.phone || '',
-        qualification: currentUser.qualification || '',
-        experience: currentUser.experience || 'Fresher',
-        targetClasses: currentUser.targetClasses || '',
-        avatar: '',
-        identityProof: '',
-        degreeCertificate: '',
-        experienceCertificate: '',
-        demoVideo: ''
-      }));
-      if (currentUser.status === 'rejected') {
-        setExistingTutorData(currentUser);
-      }
-    }
+  // When completing profile (already authenticated), we do NOT autofill from currentUser.
+  // The form must always start empty for security and privacy.
+  // The only exception is the explicit Re-apply flow (isDirectReapply) where name+email lookup is used.
 
-  }, [currentUser, initialEmail]);
 
   useEffect(() => {
-    // Only check for autofill if we are explicitly in re-apply mode or completing profile
-    // This prevents accidental autofill of "other user" data during a fresh sign-up
+    // Autofill ONLY triggers during the explicit Re-apply flow (isDirectReapply),
+    // NOT during profile completion. This ensures fresh registrations are always blank.
     const timer = setTimeout(() => {
       if (formData.email && 
           formData.email.includes('@') && 
-          formData.email.includes('.') && 
+          formData.name && 
+          formData.name.length > 2 &&
           !existingTutorData && 
-          (isDirectReapply || isCompletingProfile)) {
-        checkEmailForAutofill(formData.email);
+          isDirectReapply) {
+        checkEmailForAutofill(formData.email, formData.name);
       }
-    }, 600);
+    }, 1000);
     return () => clearTimeout(timer);
-  }, [formData.email, existingTutorData, isDirectReapply, isCompletingProfile]);
+  }, [formData.email, formData.name, existingTutorData, isDirectReapply]);
 
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
@@ -192,37 +174,38 @@ export function Registration({
     setFormData(prev => ({ ...prev, [actualName]: value }));
   };
 
-  const checkEmailForAutofill = async (email: string) => {
-    if (!email || email.length < 5 || !email.includes('@') || isCompletingProfile) return;
+  const checkEmailForAutofill = async (email: string, name: string) => {
+    if (!email || !name || isCompletingProfile) return;
     
     setIsCheckingEmail(true);
     setError(null);
     
     try {
-      const qUsers = query(collection(db, 'users'), where("email", "==", email.toLowerCase()));
-      const qTutors = query(collection(db, 'tutors'), where("email", "==", email.toLowerCase()));
+      // Find previously rejected or existing profiles matching both name and email
+      const qUsers = query(
+        collection(db, 'users'), 
+        where("email", "==", email.toLowerCase()),
+        where("name", "==", name.trim())
+      );
       
-      const [snapUsers, snapTutors] = await Promise.all([getDocs(qUsers), getDocs(qTutors)]);
-      const snap = !snapUsers.empty ? snapUsers : snapTutors;
+      const snap = await getDocs(qUsers);
       
       if (!snap.empty) {
         const docCount = snap.docs[0];
         const data = docCount.data();
+        
+        // Silently autofill text fields when a matching profile is found
         setExistingTutorData({ ...data, id: docCount.id });
         setFormData(prev => ({
           ...prev,
-          name: data.name || '',
+          name: data.name || prev.name,
           phone: data.phone || '',
           qualification: data.qualification || '',
           experience: data.experience || 'Fresher',
           targetClasses: data.targetClasses || '',
-          avatar: '',
-          identityProof: '',
-          degreeCertificate: '',
-          experienceCertificate: '',
-          demoVideo: ''
         }));
         
+        // Documents are NEVER autofilled — tutor must upload manually
         setFiles({
           profileImage: null,
           identityProof: null,
@@ -401,14 +384,14 @@ export function Registration({
     if (!formData.qualification) errors.qualification = "Qualification is required";
     if (!formData.targetClasses) errors.targetClasses = "Target classes are required";
     
-    // File validation
-    if (!files.profileImage && !existingTutorData) errors.profileImage = "Profile image is required";
-    if (!files.identityProof && !existingTutorData) errors.identityProof = "ID proof is required";
-    if (!files.degreeCertificate && !existingTutorData) errors.degreeCertificate = "Degree certificate is required";
-    if (!files.demoVideo && !existingTutorData) errors.demoVideo = "Teaching demo video is required";
+    // File validation — always required, even during Re-apply
+    if (!files.profileImage) errors.profileImage = "Profile image is required";
+    if (!files.identityProof) errors.identityProof = "ID proof is required";
+    if (!files.degreeCertificate) errors.degreeCertificate = "Degree certificate is required";
+    if (!files.demoVideo) errors.demoVideo = "Teaching demo video is required";
     
     // Experience doc mandatory ONLY if not Fresher
-    if (formData.experience !== 'Fresher' && !files.experienceCertificate && !existingTutorData) {
+    if (formData.experience !== 'Fresher' && !files.experienceCertificate) {
       errors.experienceCertificate = "Experience certificate is required";
     }
 
@@ -600,17 +583,17 @@ export function Registration({
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
                       <label className="label-caps ml-2">Full Name <span className="text-rose-500">*</span></label>
-                      <input name="profile-name-field" type="text" placeholder="Sarah Wilson" className={cn("input-field", submitted && formErrors.name && "border-rose-300")} value={formData.name} onChange={handleInputChange} required />
+                      <input name="profile-name-field" type="text" placeholder="Sarah Wilson" className={cn("input-field", submitted && formErrors.name && "border-rose-300")} value={formData.name} onChange={handleInputChange} autoComplete="off" required />
                       {submitted && formErrors.name && <p className="text-[10px] text-rose-500 font-bold ml-2">{formErrors.name}</p>}
                     </div>
                     <div className="space-y-2">
                        <label className="label-caps ml-2 flex items-center justify-between">Email Address <span className="text-rose-500">*</span> {isCheckingEmail && <Clock className="w-3 h-3 animate-spin text-primary" />}</label>
-                       <input type="email" name="user-identifier-field" value={formData.email} onChange={handleInputChange} onBlur={(e) => { if (isDirectReapply || isCompletingProfile) checkEmailForAutofill(e.target.value); }} placeholder="tutor@example.com" className={cn("input-field", existingTutorData && "opacity-70", submitted && formErrors.email && "border-rose-300")} disabled={isCompletingProfile || !!existingTutorData} required />
+                       <input type="email" name="user-identifier-field" value={formData.email} onChange={handleInputChange} onBlur={(e) => { if (isDirectReapply || isCompletingProfile) checkEmailForAutofill(e.target.value, formData.name); }} placeholder="tutor@example.com" className={cn("input-field", existingTutorData && "opacity-70", submitted && formErrors.email && "border-rose-300")} disabled={isCompletingProfile || !!existingTutorData} autoComplete="off" required />
                        {submitted && formErrors.email && <p className="text-[10px] text-rose-500 font-bold ml-2">{formErrors.email}</p>}
                     </div>
                     <div className="space-y-2">
                       <label className="label-caps ml-2">Mobile Number <span className="text-rose-500">*</span></label>
-                      <input name="user-phone-field" type="tel" className={cn("input-field", submitted && formErrors.phone && "border-rose-300")} value={formData.phone} onChange={handleInputChange} required />
+                      <input name="user-phone-field" type="tel" className={cn("input-field", submitted && formErrors.phone && "border-rose-300")} value={formData.phone} onChange={handleInputChange} autoComplete="off" required />
                       {submitted && formErrors.phone && <p className="text-[10px] text-rose-500 font-bold ml-2">{formErrors.phone}</p>}
                     </div>
                     {!existingTutorData && (
@@ -622,7 +605,8 @@ export function Registration({
                             type={showPassword ? "text" : "password"} 
                             className={cn("input-field pr-12", submitted && formErrors.password && "border-rose-300")} 
                             value={formData.password} 
-                            onChange={handleInputChange} 
+                            onChange={handleInputChange}
+                            autoComplete="new-password"
                             required 
                           />
                           <button 
@@ -641,7 +625,7 @@ export function Registration({
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
                       <label className="label-caps ml-2">Highest Qualification <span className="text-rose-500">*</span></label>
-                      <input name="qualification-field" type="text" placeholder="e.g. B-Tech, M-Tech, PhD, Degree etc." className={cn("input-field", submitted && formErrors.qualification && "border-rose-300")} value={formData.qualification} onChange={handleInputChange} required />
+                      <input name="qualification-field" type="text" placeholder="e.g. B-Tech, M-Tech, PhD, Degree etc." className={cn("input-field", submitted && formErrors.qualification && "border-rose-300")} value={formData.qualification} onChange={handleInputChange} autoComplete="off" required />
                       {submitted && formErrors.qualification && <p className="text-[10px] text-rose-500 font-bold ml-2">{formErrors.qualification}</p>}
                     </div>
                     <div className="space-y-2">

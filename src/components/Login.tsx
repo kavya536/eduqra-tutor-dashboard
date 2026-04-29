@@ -104,7 +104,7 @@ export function Login({ onLogin, onSwitchToRegister, onReapply }: LoginProps) {
                   <label className="label-caps ml-2">Email Address</label>
                   <div className="relative group">
                     <Mail className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-primary transition-colors" />
-                    <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required className="input-field" placeholder="tutor@example.com" />
+                    <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required className="input-field" placeholder="tutor@example.com" autoComplete="off" />
                   </div>
                 </div>
                 
@@ -113,7 +113,7 @@ export function Login({ onLogin, onSwitchToRegister, onReapply }: LoginProps) {
                     <label className="label-caps ml-2">Password</label>
                     <div className="relative group">
                       <Lock className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-primary transition-colors" />
-                      <input type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} required className="input-field pr-12" placeholder="••••••••" />
+                      <input type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} required className="input-field pr-12" placeholder="••••••••" autoComplete="new-password" />
                       <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-primary transition-colors">
                         {showPassword ? <Eye size={18} /> : <EyeOff size={18} />}
                       </button>
@@ -152,7 +152,7 @@ export function Login({ onLogin, onSwitchToRegister, onReapply }: LoginProps) {
                   <p className="text-sm font-bold text-on-surface-variant"> Don't have an account? <button type="button" onClick={onSwitchToRegister} className="text-primary font-black hover:underline transition-all cursor-pointer">Sign Up</button> </p>
                   <div className="pt-4 border-t border-slate-100 flex flex-col items-center gap-3">
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Previously Rejected?</p>
-                    <button type="button" onClick={() => onReapply(email)} className="text-[11px] font-black text-primary bg-primary/5 hover:bg-primary/10 px-6 py-3 rounded-xl transition-all border border-primary/10 uppercase tracking-widest" > Re-apply </button>
+                    <button type="button" onClick={() => onReapply()} className="text-[11px] font-black text-primary bg-primary/5 hover:bg-primary/10 px-6 py-3 rounded-xl transition-all border border-primary/10 uppercase tracking-widest" > Re-apply </button>
                   </div>
                 </>
               )}

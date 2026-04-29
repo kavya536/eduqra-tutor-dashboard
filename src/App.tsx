@@ -52,11 +52,10 @@ export default function App() {
     // 1. Handle query parameters for re-application flow (triggered by email links)
     const urlParams = new URLSearchParams(window.location.search);
     const reapplyFlag = urlParams.get('reapply');
-    const autoEmail = urlParams.get('email');
-    
     if (reapplyFlag === 'true') {
       setIsReapplying(true);
-      if (autoEmail) setPrefilledEmail(autoEmail);
+      // We don't pre-fill email anymore as per user request for empty fields
+      setPrefilledEmail('');
       setView('register');
       // Clean URL to avoid re-triggering on refresh
       window.history.replaceState({}, '', window.location.pathname);
@@ -220,8 +219,16 @@ export default function App() {
     }
   };
 
-  const [currentPage, setCurrentPage] = useState<PageId>('dashboard');
+  const [currentPage, setCurrentPage] = useState<PageId>(() => {
+    const saved = localStorage.getItem('tutor_current_page');
+    return (saved && saved !== 'null') ? (saved as PageId) : 'dashboard';
+  });
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  // Persist active page across refreshes
+  useEffect(() => {
+    localStorage.setItem('tutor_current_page', currentPage);
+  }, [currentPage]);
 
   // Scroll to top when page changes
   useEffect(() => {
@@ -1499,6 +1506,7 @@ export default function App() {
 
   const confirmLogout = () => {
     auth.signOut();
+    localStorage.removeItem('tutor_current_page');
     setView('login');
     setIsReapplying(false);
     setPrefilledEmail('');
@@ -1739,9 +1747,9 @@ export default function App() {
             setPrefilledEmail('');
             setView('register');
           }} 
-          onReapply={(email) => {
+          onReapply={() => {
             setIsReapplying(true);
-            setPrefilledEmail(email || '');
+            setPrefilledEmail('');
             setView('register');
           }}
         />
