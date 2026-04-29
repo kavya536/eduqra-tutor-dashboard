@@ -2,7 +2,7 @@ import { Mail, Lock, AlertCircle, ArrowLeft, CheckCircle2, Eye, EyeOff } from 'l
 import { useState, FormEvent, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { auth } from '../firebase';
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 
 
 interface LoginProps {
@@ -17,6 +17,8 @@ const mapAuthError = (code: string) => {
     case 'auth/wrong-password':
     case 'auth/invalid-credential': return "Incorrect email or password";
     case 'auth/too-many-requests': return "⚠️ Too many failed attempts. Please try again later or reset your password.";
+    case 'auth/user-not-found': return "⚠️ No account found with this email address.";
+    case 'auth/invalid-email': return "⚠️ Please enter a valid email address.";
     default: return "⚠️ An unexpected error occurred. Please try again.";
   }
 };
@@ -67,22 +69,13 @@ export function Login({ onLogin, onSwitchToRegister, onReapply }: LoginProps) {
     }
     setIsSendingReset(true);
     try {
-      // Call the backend to send a branded, professional reset email
-      const response = await fetch('http://localhost:5001/api/auth/reset-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.toLowerCase() })
-      });
-      
-      const data = await response.json();
-      if (response.ok) {
-        setSuccessMessage("✅ Reset link sent! Please check your inbox.");
-      } else {
-        setError(data.message || "⚠️ Unable to process reset request.");
-      }
+      // Use the standard Firebase client SDK to send reset emails. 
+      // This is more reliable as it doesn't depend on backend admin credentials.
+      await sendPasswordResetEmail(auth, email.toLowerCase());
+      setSuccessMessage("✅ Reset link sent! Please check your inbox.");
     } catch (err: any) {
       console.error("❌ Reset Error:", err);
-      setError("⚠️ Network error. Please try again later.");
+      setError(mapAuthError(err.code) || "⚠️ Unable to process reset request.");
     } finally {
       setIsSendingReset(false);
     }
@@ -156,7 +149,7 @@ export function Login({ onLogin, onSwitchToRegister, onReapply }: LoginProps) {
                 <button type="button" onClick={() => { setView('login'); setError(null); setSuccessMessage(null); }} className="flex items-center justify-center gap-2 w-full text-[10px] font-black text-primary uppercase tracking-widest transition-all" > <ArrowLeft size={14} /> Back to Sign In </button>
               ) : (
                 <>
-                  <p className="text-sm font-bold text-on-surface-variant"> Don't have an account? <button type="button" onClick={onSwitchToRegister} className="text-primary font-black hover:underline transition-all">Sign Up</button> </p>
+                  <p className="text-sm font-bold text-on-surface-variant"> Don't have an account? <button type="button" onClick={onSwitchToRegister} className="text-primary font-black hover:underline transition-all cursor-pointer">Sign Up</button> </p>
                   <div className="pt-4 border-t border-slate-100 flex flex-col items-center gap-3">
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Previously Rejected?</p>
                     <button type="button" onClick={() => onReapply(email)} className="text-[11px] font-black text-primary bg-primary/5 hover:bg-primary/10 px-6 py-3 rounded-xl transition-all border border-primary/10 uppercase tracking-widest" > Re-apply </button>

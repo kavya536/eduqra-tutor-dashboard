@@ -167,8 +167,8 @@ export default function App() {
               } else {
                 // TRUE NEW USER: Show registration if they just signed up
                 setProfile(null);
-                // CRITICAL: Only switch to register if we are NOT already in 'app' (waiting for sync)
-                if (view !== 'register' && view !== 'app') setView('register');
+                // CRITICAL: Only switch to register if we are NOT already in 'app' (waiting for sync) or 'login'
+                if (view !== 'register' && view !== 'app' && view !== 'login') setView('register');
               }
             } catch (err) {
               console.error("Linker check failed:", err);
@@ -202,7 +202,7 @@ export default function App() {
         rejectionReason: "", // Clear the reason
         reappliedAt: serverTimestamp()
       });
-      console.log("âœ… Re-application successful in users collection.");
+      console.log("✅ Re-application successful in users collection.");
       
       // Notify Admin
       await addDoc(collection(db, 'admin_notifications'), {
@@ -1706,6 +1706,7 @@ export default function App() {
           isCompletingProfile={!!user} 
           isDirectReapply={!user}
           initialEmail={prefilledEmail}
+          notice="We found your account! Please complete the registration details below to activate your tutor profile."
         />
       );
     }
@@ -1726,6 +1727,7 @@ export default function App() {
             }} 
             isDirectReapply={isReapplying}
             initialEmail={prefilledEmail}
+            notice={prefilledEmail ? "You are not registered. Try to registration now." : null}
           />
         );
       }
@@ -1739,7 +1741,7 @@ export default function App() {
           }} 
           onReapply={(email) => {
             setIsReapplying(true);
-            setPrefilledEmail('');
+            setPrefilledEmail(email || '');
             setView('register');
           }}
         />
@@ -1775,11 +1777,11 @@ export default function App() {
           </div>
         );
       }
-      return <Registration currentUser={user} onComplete={() => setView('app')} onSwitchToLogin={handleLogout} isCompletingProfile={true} />;
+      return <Registration currentUser={user} onComplete={() => setView('app')} onSwitchToLogin={handleLogout} isCompletingProfile={true} notice="You are not registered. Try to registration now." />;
     }
 
-    // 4. STATUS GATE: PENDING
-    if (profile.status === 'pending') {
+    // 4. STATUS GATE: PENDING / REVIEW (Default state for non-approved profiles)
+    if (profile.status === 'pending' || (profile.status !== 'approved' && profile.status !== 'rejected' && profile.status !== 'blocked')) {
       return (
         <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 text-center">
           <div className="w-24 h-24 bg-amber-100 rounded-full flex items-center justify-center mb-8 relative">
@@ -2283,10 +2285,10 @@ export default function App() {
     <>
       {renderAppContent()}
       
-      {/* Logout Confirmation Dialog */}
+      {/* Logout Confirmation Dialog - Higher Z-Index than Registration (9999) */}
       <AnimatePresence>
         {showLogoutConfirm && (
-          <div className="fixed inset-0 z-[300] bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-[10000] bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
             <motion.div 
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}

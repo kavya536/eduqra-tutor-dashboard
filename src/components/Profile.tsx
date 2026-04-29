@@ -255,8 +255,12 @@ export function Profile({ onExperienceChange, user }: ProfileProps) {
                 type="button"
                 onClick={() => {
                   if (newSubject.trim()) {
-                    const next = [...formData.subjects, newSubject.trim()];
-                    handleInputChange('subjects', Array.from(new Set(next)));
+                    const normalized = newSubject.trim();
+                    const exists = formData.subjects.some((s: string) => s.toLowerCase() === normalized.toLowerCase());
+                    if (!exists) {
+                      const next = [...formData.subjects, normalized];
+                      handleInputChange('subjects', next);
+                    }
                     setNewSubject('');
                   }
                 }}
@@ -281,7 +285,14 @@ export function Profile({ onExperienceChange, user }: ProfileProps) {
                   className="w-full pl-12 pr-4 py-3.5 text-sm font-bold rounded-xl bg-slate-50 border-none focus:ring-2 focus:ring-primary outline-none shadow-inner" 
                 />
               </div>
-
+              <div className="mt-2 ml-1 flex flex-col gap-1">
+                <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest">
+                  Student Viewing Price: ₹{Math.ceil((parseFloat(formData.classPricing) || 0) * 1.17)}/hr
+                </p>
+                <p className="text-[8px] font-bold text-slate-400 leading-tight italic">
+                  * Note: This is a general starting amount for student visibility. Specific subject pricing can be managed in the Financials section.
+                </p>
+              </div>
             </div>
             <div>
               <label className="block text-[10px] font-black mb-1.5 uppercase tracking-wider text-on-surface-variant">UPI ID *</label>

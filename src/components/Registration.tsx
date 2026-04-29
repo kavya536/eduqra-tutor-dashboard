@@ -14,6 +14,7 @@ interface RegistrationProps {
   isDirectReapply?: boolean;
   initialEmail?: string;
   currentUser?: any;
+  notice?: string | null;
 }
 
 const mapAuthError = (code: string) => {
@@ -39,7 +40,8 @@ export function Registration({
   isCompletingProfile = false, 
   isDirectReapply = false, 
   initialEmail = '', 
-  currentUser = null 
+  currentUser = null,
+  notice = null
 }: RegistrationProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
@@ -47,6 +49,11 @@ export function Registration({
   const [error, setError] = useState<string | null>(null);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [submitted, setSubmitted] = useState(false);
+  const [activeNotice, setActiveNotice] = useState<string | null>(notice);
+
+  useEffect(() => {
+    if (notice) setActiveNotice(notice);
+  }, [notice]);
 
   // Form State
   const [formData, setFormData] = useState<any>({
@@ -88,17 +95,19 @@ export function Registration({
   }, [currentUser, initialEmail]);
 
   useEffect(() => {
+    // Only check for autofill if we are explicitly in re-apply mode or completing profile
+    // This prevents accidental autofill of "other user" data during a fresh sign-up
     const timer = setTimeout(() => {
       if (formData.email && 
           formData.email.includes('@') && 
           formData.email.includes('.') && 
           !existingTutorData && 
-          !isCompletingProfile) {
+          (isDirectReapply || isCompletingProfile)) {
         checkEmailForAutofill(formData.email);
       }
     }, 600);
     return () => clearTimeout(timer);
-  }, [formData.email, existingTutorData]);
+  }, [formData.email, existingTutorData, isDirectReapply, isCompletingProfile]);
 
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
@@ -381,10 +390,38 @@ export function Registration({
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setSubmitted(true);
-    if (!formData.name || !formData.email || !formData.phone || (!formData.password && !existingTutorData)) {
-      setError("Please complete all mandatory fields.");
+    
+    // Robust Validation Check
+    const errors: Record<string, string> = {};
+    if (!formData.name) errors.name = "Full Name is required";
+    if (!formData.email) errors.email = "Email is required";
+    if (!formData.phone) errors.phone = "Phone number is required";
+    if (formData.phone && formData.phone.length < 10) errors.phone = "Enter a valid 10-digit phone number";
+    if (!existingTutorData && !formData.password) errors.password = "Password is required";
+    if (!formData.qualification) errors.qualification = "Qualification is required";
+    if (!formData.targetClasses) errors.targetClasses = "Target classes are required";
+    
+    // File validation
+    if (!files.profileImage && !existingTutorData) errors.profileImage = "Profile image is required";
+    if (!files.identityProof && !existingTutorData) errors.identityProof = "ID proof is required";
+    if (!files.degreeCertificate && !existingTutorData) errors.degreeCertificate = "Degree certificate is required";
+    if (!files.demoVideo && !existingTutorData) errors.demoVideo = "Teaching demo video is required";
+    
+    // Experience doc mandatory ONLY if not Fresher
+    if (formData.experience !== 'Fresher' && !files.experienceCertificate && !existingTutorData) {
+      errors.experienceCertificate = "Experience certificate is required";
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors);
+      // Removed global error message as requested
+      
+      // Focus first error or scroll to top
+      window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
+
+    setFormErrors({});
 
     try {
       setIsSubmitting(true);
@@ -397,8 +434,25 @@ export function Registration({
       } else if (existingTutorData?.id) {
         uid = existingTutorData.id;
       } else {
-        const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
-        uid = userCredential.user.uid;
+        try {
+          const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
+          uid = userCredential.user.uid;
+        } catch (authErr: any) {
+          if (authErr.code === 'auth/email-already-in-use') {
+            // AUTO-REPAIR: User exists in Auth but maybe missing from Firestore
+            // Try to sign in and proceed with backend sync to "repair" the database record
+            try {
+              const signinCred = await signInWithEmailAndPassword(auth, formData.email, formData.password);
+              uid = signinCred.user.uid;
+              setSubmissionState('🔄 Syncing existing account...');
+            } catch (loginErr: any) {
+              // If sign-in also fails (e.g. wrong password), show the original error
+              throw authErr;
+            }
+          } else {
+            throw authErr;
+          }
+        }
       }
 
       setSubmissionState('📤 Finalizing Registration...');
@@ -412,25 +466,71 @@ export function Registration({
       registerData.append('targetClasses', formData.targetClasses);
       if (formData.location) registerData.append('location', JSON.stringify(formData.location));
 
+      // Compatibility: Append both possible field names for certificates
       if (files.profileImage) registerData.append('profileImage', files.profileImage);
       if (files.identityProof) registerData.append('idProof', files.identityProof);
-      if (files.degreeCertificate) registerData.append('qualificationDocs', files.degreeCertificate);
-      if (files.experienceCertificate) registerData.append('experienceDocs', files.experienceCertificate);
+      if (files.degreeCertificate) {
+        registerData.append('qualificationDocs', files.degreeCertificate);
+        registerData.append('degreeCertificate', files.degreeCertificate);
+      }
+      if (files.experienceCertificate) {
+        registerData.append('experienceDocs', files.experienceCertificate);
+        registerData.append('experienceCertificate', files.experienceCertificate);
+      }
       if (files.demoVideo) registerData.append('demoVideo', files.demoVideo);
+
+      // DIRECT FIRESTORE WRITE (Frontend): Ensure the document exists even if backend has rules/sync lag
+      const directTutorData = {
+        uid: uid,
+        name: formData.name,
+        email: formData.email.toLowerCase(),
+        phone: formData.phone,
+        qualification: formData.qualification,
+        experience: formData.experience,
+        targetClasses: formData.targetClasses,
+        status: 'pending',
+        role: 'tutor',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      };
+
+      try {
+        await setDoc(doc(db, 'users', uid), directTutorData, { merge: true });
+        console.log("✅ Frontend Firestore Write Success");
+        
+        // DIRECT NOTIFICATION: Ensure admin gets an alert even if backend sync is slow
+        await addDoc(collection(db, 'admin_notifications'), {
+          type: 'Registration',
+          tutorId: uid,
+          title: 'New Tutor Registration',
+          message: `${formData.name || formData.email} has registered and is awaiting verification.`,
+          time: serverTimestamp(),
+          read: false
+        });
+        console.log("✅ Frontend Admin Notification Sent");
+      } catch (fsErr) {
+        console.error("❌ Frontend Firestore/Notification Write Failed:", fsErr);
+        // We continue anyway as the backend might still work
+      }
 
       const response = await fetch('http://localhost:5001/api/register-tutor', {
         method: 'POST',
         body: registerData
       });
+      
+      const responseData = await response.json().catch(() => ({}));
+      console.log("Registration API Response:", responseData);
 
-      if (!response.ok) throw new Error("Sync Failed.");
+      if (!response.ok) {
+        throw new Error(responseData.message || "Database synchronization failed. Please try again.");
+      }
 
       setIsSuccess(true);
       setIsSubmitting(false);
       setTimeout(() => onComplete(), 2000);
 
     } catch (err: any) {
-      setError(err.message);
+      setError(mapAuthError(err.code) || err.message);
       setIsSubmitting(false);
     }
   };
@@ -453,46 +553,99 @@ export function Registration({
               <p className="text-base text-on-surface-variant font-bold opacity-60">Join our specialized teaching network.</p>
             </div>
 
+            {isCompletingProfile && !existingTutorData && !isCheckingEmail && (
+              <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl mb-8 flex items-center gap-3 animate-in fade-in slide-in-from-top-4 duration-500">
+                <AlertCircle className="text-amber-500 shrink-0" size={20} />
+                <p className="text-amber-800 text-[11px] font-bold leading-relaxed">
+                  Welcome back! It looks like your profile registration isn't complete yet. Please fill in the details below to finish setting up your tutor account.
+                </p>
+              </div>
+            )}
+
+            <AnimatePresence>
+              {activeNotice && (
+                <motion.div 
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="bg-primary/10 border border-primary/20 p-5 rounded-3xl flex items-start gap-4 mb-8"
+                >
+                  <ShieldCheck className="text-primary mt-1" size={24} />
+                  <div>
+                    <p className="text-sm font-black text-primary uppercase tracking-tight">System Notice</p>
+                    <p className="text-xs text-primary/70 font-bold mt-1 leading-relaxed">
+                      {activeNotice}
+                    </p>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             <form onSubmit={handleSubmit} className="space-y-8" autoComplete="off">
               {!isSuccess ? (
                 <div className="space-y-8">
-                  <div className="flex flex-col items-center mb-10 p-6 bg-slate-50 rounded-4xl border-2 border-dashed border-slate-200 hover:border-primary transition-all relative group cursor-pointer">
+                  <div className={cn("flex flex-col items-center mb-10 p-6 bg-slate-50 rounded-4xl border-2 border-dashed transition-all relative group cursor-pointer", submitted && formErrors.profileImage ? "border-rose-300" : "border-slate-200 hover:border-primary")}>
                     <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-lg mb-4 border-2 border-white overflow-hidden relative">
                       {files.profileImage ? ( <img src={URL.createObjectURL(files.profileImage)} className="w-full h-full object-cover" alt="Profile" /> ) : ( <User className="w-8 h-8 text-slate-200" /> )}
                     </div>
-                    <label className="text-xs font-black text-primary uppercase tracking-[0.2em] mb-1">Tutor Profile Image</label>
+                    <label className="text-xs font-black text-primary uppercase tracking-[0.2em] mb-1">Tutor Profile Image <span className="text-rose-500">*</span></label>
                     <input type="file" accept="image/jpeg, image/png" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => handleFileChange(e, 'profileImage')} />
-                    {files.profileImage && ( <div className="mt-3 flex items-center gap-2 px-3 py-1 bg-green-100 rounded-full"> <Check size={10} className="text-green-600" /> <span className="text-[9px] font-black text-green-700 uppercase tracking-widest">Image Ready</span> </div> )}
+                    {files.profileImage ? ( 
+                      <div className="mt-3 flex items-center gap-2 px-3 py-1 bg-green-100 rounded-full"> <Check size={10} className="text-green-600" /> <span className="text-[9px] font-black text-green-700 uppercase tracking-widest">Image Ready</span> </div> 
+                    ) : (
+                      submitted && formErrors.profileImage && <p className="text-[9px] text-rose-500 font-bold mt-2">{formErrors.profileImage}</p>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
-                      <label className="label-caps ml-2">Full Name</label>
+                      <label className="label-caps ml-2">Full Name <span className="text-rose-500">*</span></label>
                       <input name="profile-name-field" type="text" placeholder="Sarah Wilson" className={cn("input-field", submitted && formErrors.name && "border-rose-300")} value={formData.name} onChange={handleInputChange} required />
+                      {submitted && formErrors.name && <p className="text-[10px] text-rose-500 font-bold ml-2">{formErrors.name}</p>}
                     </div>
                     <div className="space-y-2">
-                       <label className="label-caps ml-2 flex items-center justify-between">Email Address {isCheckingEmail && <Clock className="w-3 h-3 animate-spin text-primary" />}</label>
-                       <input type="email" name="user-identifier-field" value={formData.email} onChange={handleInputChange} onBlur={(e) => checkEmailForAutofill(e.target.value)} placeholder="tutor@example.com" className={cn("input-field", existingTutorData && "opacity-70")} disabled={isCompletingProfile || !!existingTutorData} required />
+                       <label className="label-caps ml-2 flex items-center justify-between">Email Address <span className="text-rose-500">*</span> {isCheckingEmail && <Clock className="w-3 h-3 animate-spin text-primary" />}</label>
+                       <input type="email" name="user-identifier-field" value={formData.email} onChange={handleInputChange} onBlur={(e) => { if (isDirectReapply || isCompletingProfile) checkEmailForAutofill(e.target.value); }} placeholder="tutor@example.com" className={cn("input-field", existingTutorData && "opacity-70", submitted && formErrors.email && "border-rose-300")} disabled={isCompletingProfile || !!existingTutorData} required />
+                       {submitted && formErrors.email && <p className="text-[10px] text-rose-500 font-bold ml-2">{formErrors.email}</p>}
                     </div>
                     <div className="space-y-2">
-                      <label className="label-caps ml-2">Mobile Number</label>
-                      <input name="user-phone-field" type="tel" className="input-field" value={formData.phone} onChange={handleInputChange} required />
+                      <label className="label-caps ml-2">Mobile Number <span className="text-rose-500">*</span></label>
+                      <input name="user-phone-field" type="tel" className={cn("input-field", submitted && formErrors.phone && "border-rose-300")} value={formData.phone} onChange={handleInputChange} required />
+                      {submitted && formErrors.phone && <p className="text-[10px] text-rose-500 font-bold ml-2">{formErrors.phone}</p>}
                     </div>
                     {!existingTutorData && (
                       <div className="space-y-2">
                         <label className="label-caps ml-2">Password</label>
-                        <input name="new-password" type="password" className="input-field" value={formData.password} onChange={handleInputChange} required />
+                        <div className="relative">
+                          <input 
+                            name="new-password" 
+                            type={showPassword ? "text" : "password"} 
+                            className={cn("input-field pr-12", submitted && formErrors.password && "border-rose-300")} 
+                            value={formData.password} 
+                            onChange={handleInputChange} 
+                            required 
+                          />
+                          <button 
+                            type="button" 
+                            onClick={() => setShowPassword(!showPassword)} 
+                            className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-primary transition-colors"
+                          >
+                            {showPassword ? <Eye size={18} /> : <EyeOff size={18} />}
+                          </button>
+                        </div>
+                        {submitted && formErrors.password && <p className="text-[10px] text-rose-500 font-bold ml-2">{formErrors.password}</p>}
                       </div>
                     )}
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
-                      <label className="label-caps ml-2">Highest Qualification</label>
-                      <input name="qualification-field" type="text" className="input-field" value={formData.qualification} onChange={handleInputChange} required />
+                      <label className="label-caps ml-2">Highest Qualification <span className="text-rose-500">*</span></label>
+                      <input name="qualification-field" type="text" className={cn("input-field", submitted && formErrors.qualification && "border-rose-300")} value={formData.qualification} onChange={handleInputChange} required />
+                      {submitted && formErrors.qualification && <p className="text-[10px] text-rose-500 font-bold ml-2">{formErrors.qualification}</p>}
                     </div>
                     <div className="space-y-2">
-                      <label className="label-caps ml-2">Experience</label>
+                      <label className="label-caps ml-2">Experience <span className="text-rose-500">*</span></label>
                       <select name="experience" className="input-field" value={formData.experience} onChange={handleInputChange} required>
                         <option value="Fresher">Fresher</option>
                         <option value="1-3 Years">1-3 Years</option>
@@ -501,8 +654,8 @@ export function Registration({
                       </select>
                     </div>
                     <div className="space-y-2 md:col-span-2">
-                      <label className="label-caps ml-2">Which classes can you teach?</label>
-                      <select name="targetClasses" className="input-field" value={formData.targetClasses} onChange={handleInputChange} required>
+                      <label className="label-caps ml-2">Which classes can you teach? <span className="text-rose-500">*</span></label>
+                      <select name="targetClasses" className={cn("input-field", submitted && formErrors.targetClasses && "border-rose-300")} value={formData.targetClasses} onChange={handleInputChange} required>
                         <option value="">Select Level</option>
                          <option value="Nursery to UKG">Nursery to UKG</option>
                          <option value="Primary (1-5)">Primary (1-5)</option>
@@ -510,26 +663,39 @@ export function Registration({
                          <option value="Intermediate (11-12)">Intermediate (11-12)</option>
                          <option value="Graduate (B-Tech, Degree, M-Tech)">Graduate (B-Tech, Degree, M-Tech)</option>
                       </select>
+                      {submitted && formErrors.targetClasses && <p className="text-[10px] text-rose-500 font-bold ml-2">{formErrors.targetClasses}</p>}
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    {['identityProof', 'experienceCertificate', 'degreeCertificate'].map((field) => (
-                      <div key={field} className={cn("bg-white border-2 border-slate-100 border-dashed p-4 rounded-3xl flex flex-col items-center justify-center text-center relative hover:border-primary h-[160px]", files[field as keyof typeof files] ? "border-green-500" : "border-slate-200")}>
-                        <p className="font-black text-[10px] uppercase tracking-widest">{field === 'identityProof' ? 'ID Proof' : field === 'experienceCertificate' ? 'Experience' : 'Degree'}</p>
-                        <input type="file" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => handleFileChange(e, field as any)} />
-                        {files[field as keyof typeof files] && <CheckCircle size={20} className="text-green-500 mt-2" />}
-                      </div>
-                    ))}
+                    {['identityProof', 'experienceCertificate', 'degreeCertificate'].map((field) => {
+                      const isMandatory = field !== 'experienceCertificate' || formData.experience !== 'Fresher';
+                      return (
+                        <div key={field} className="space-y-1">
+                          <div className={cn("bg-white border-2 border-slate-100 border-dashed p-4 rounded-3xl flex flex-col items-center justify-center text-center relative hover:border-primary h-[160px]", files[field as keyof typeof files] ? "border-green-500" : (submitted && formErrors[field] ? "border-rose-300" : "border-slate-200"))}>
+                            <p className="font-black text-[10px] uppercase tracking-widest">
+                              {field === 'identityProof' ? 'ID Proof' : field === 'experienceCertificate' ? 'Experience' : 'Degree'} 
+                              {isMandatory && <span className="text-rose-500"> *</span>}
+                            </p>
+                            <input type="file" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => handleFileChange(e, field as any)} />
+                            {files[field as keyof typeof files] && <CheckCircle size={20} className="text-green-500 mt-2" />}
+                          </div>
+                          {submitted && formErrors[field] && <p className="text-[9px] text-rose-500 font-bold text-center">{formErrors[field]}</p>}
+                        </div>
+                      );
+                    })}
                     
-                    <div id="demo-video-section" className={cn("bg-white border-2 border-slate-100 p-2 rounded-3xl flex flex-col relative h-[160px]", files.demoVideo ? "border-green-500" : "border-slate-100")}>
-                      <div className="flex-1 rounded-2xl bg-slate-50 flex flex-col items-center justify-center p-4">
-                        <Video className="w-5 h-5 text-slate-500 mb-1" />
-                         <h5 className="text-[11px] font-black">{files.demoVideo ? 'Demo Captured' : 'Teaching Demo'}</h5>
-                         <button type="button" onClick={openCameraPreview} className="mt-2 text-[9px] font-black bg-rose-600 text-white px-4 py-2 rounded-xl uppercase">
-                           {files.demoVideo ? 'Re-record' : 'Start'}
-                         </button>
+                    <div id="demo-video-section" className="space-y-1">
+                      <div className={cn("bg-white border-2 border-slate-100 p-2 rounded-3xl flex flex-col relative h-[160px]", files.demoVideo ? "border-green-500" : (submitted && formErrors.demoVideo ? "border-rose-300" : "border-slate-100"))}>
+                        <div className="flex-1 rounded-2xl bg-slate-50 flex flex-col items-center justify-center p-4">
+                          <Video className="w-5 h-5 text-slate-500 mb-1" />
+                           <h5 className="text-[11px] font-black">{files.demoVideo ? 'Demo Captured' : 'Teaching Demo'} <span className="text-rose-500">*</span></h5>
+                           <button type="button" onClick={openCameraPreview} className="mt-2 text-[9px] font-black bg-rose-600 text-white px-4 py-2 rounded-xl uppercase">
+                             {files.demoVideo ? 'Re-record' : 'Start'}
+                           </button>
+                        </div>
                       </div>
+                      {submitted && formErrors.demoVideo && <p className="text-[9px] text-rose-500 font-bold text-center">{formErrors.demoVideo}</p>}
                     </div>
                   </div>
 
@@ -539,14 +705,14 @@ export function Registration({
                     <button type="submit" disabled={isSubmitting} className="w-full bg-primary text-white text-lg py-5 rounded-3xl font-black uppercase tracking-widest shadow-2xl hover:shadow-primary/40 transition-all">
                       {isSubmitting ? 'Processing...' : 'Complete Registration'}
                     </button>
-                    <p className="text-center mt-6 text-sm font-bold text-slate-500">Already have an account? <button type="button" onClick={onSwitchToLogin} className="text-primary hover:underline">Sign In</button></p>
+                    <p className="text-center mt-6 text-sm font-bold text-slate-500">Already have an account? <button type="button" onClick={onSwitchToLogin} className="text-primary hover:underline cursor-pointer">Sign In</button></p>
                   </div>
                 </div>
               ) : (
                 <div className="flex flex-col items-center justify-center py-20 text-center gap-6">
                    <div className="w-20 h-20 bg-green-500 rounded-full flex items-center justify-center shadow-xl"> <Check className="text-white w-10 h-10" /> </div>
-                   <h2 className="text-3xl font-black text-slate-800">Registration Confirmed!</h2>
-                   <p className="text-slate-500 font-bold">Your profile is being synchronized. Redirecting shortly...</p>
+                   <h2 className="text-3xl font-black text-slate-800">Application Submitted!</h2>
+                   <p className="text-slate-500 font-bold text-center max-w-sm">Your profile has been received and is now under review by our administration. Redirecting to your status dashboard...</p>
                 </div>
               )}
             </form>
