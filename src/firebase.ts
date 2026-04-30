@@ -3,7 +3,7 @@ import { getAnalytics } from "firebase/analytics";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
-import { getMessaging } from "firebase/messaging";
+
 
 
 const firebaseConfig = {
@@ -34,7 +34,22 @@ if (typeof window !== "undefined") {
   }
 }
 
-const messaging = typeof window !== 'undefined' ? getMessaging(app) : null;
+let messaging = null;
+
+// Safe Messaging Initialization:
+// Browsers disable Service Worker & Messaging APIs in insecure contexts (like Network IP addresses).
+// We must check for support before initializing to prevent the entire app from crashing.
+if (typeof window !== "undefined") {
+  import("firebase/messaging").then(({ getMessaging, isSupported }) => {
+    isSupported().then((supported) => {
+      if (supported) {
+        messaging = getMessaging(app);
+      } else {
+        console.warn("🔔 Push Notifications: Not supported in this context (requires HTTPS or Localhost).");
+      }
+    }).catch(err => console.warn("🔔 Messaging Support Check Error:", err));
+  });
+}
 
 export { app, analytics, auth, db, storage, messaging };
 

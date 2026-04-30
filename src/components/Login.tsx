@@ -13,11 +13,10 @@ interface LoginProps {
 
 const mapAuthError = (code: string) => {
   switch (code) {
-    case 'auth/user-not-found':
+    case 'auth/user-not-found': return "⚠️ No account found with this email address.";
     case 'auth/wrong-password':
     case 'auth/invalid-credential': return "Incorrect email or password";
     case 'auth/too-many-requests': return "⚠️ Too many failed attempts. Please try again later or reset your password.";
-    case 'auth/user-not-found': return "⚠️ No account found with this email address.";
     case 'auth/invalid-email': return "⚠️ Please enter a valid email address.";
     default: return "⚠️ An unexpected error occurred. Please try again.";
   }
