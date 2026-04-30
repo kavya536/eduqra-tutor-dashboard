@@ -88,13 +88,17 @@ export default function App() {
               return;
             }
 
-            // Sync profile data
             setProfile({ id: docSnap.id, ...data });
+
+            // SESSION MANAGEMENT: Mark first login as completed once they reach the app view
+            if (data.email_verified && data.first_login_completed === false && data.status === 'approved') {
+              updateDoc(doc(db, 'users', firebaseUser.uid), { first_login_completed: true });
+            }
 
             // FLOW CONTROL: 
             // Avoid jumping to 'app' view if the user is actively registering or reapplying,
-            // UNLESS the status is already 'approved'. This keeps the success/waiting screens visible.
-            if (data.status === 'approved') {
+            // UNLESS the status is already 'approved' AND email is verified.
+            if (data.status === 'approved' && data.email_verified) {
               setView('app');
             } else if (view !== 'register' && view !== 'login') {
               // If we are in 'app' or elsewhere, keep it there to show status screens
@@ -190,32 +194,34 @@ export default function App() {
     return () => unsubscribe();
   }, []); // Only listen once on mount
 
-  // Handle Re-apply Action (Single Collection Logic)
+  // Handle Re-apply Action: Redirect to registration form for corrections
   const handleReapply = async () => {
     if (!user) return;
-    setProfileLoading(true);
+    setIsReapplying(true);
+    setView('register');
+    console.log("🔄 Redirecting rejected tutor to registration for correction.");
+  };
+
+  const handleResendVerification = async () => {
+    if (!user || !profile) return;
     try {
-      const userRef = doc(db, 'users', user.uid);
-      await updateDoc(userRef, {
-        status: 'pending',
-        rejectionReason: "", // Clear the reason
-        reappliedAt: serverTimestamp()
+      const response = await fetch('http://localhost:5001/api/auth/send-verification', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user.uid,
+          email: user.email,
+          name: profile.name,
+          role: 'tutor'
+        })
       });
-      console.log("✅ Re-application successful in users collection.");
-      
-      // Notify Admin
-      await addDoc(collection(db, 'admin_notifications'), {
-        type: 'Reapplication',
-        tutorId: user.uid,
-        title: 'Tutor Re-application',
-        message: `${profile?.name || 'A tutor'} has corrected their profile and re-applied.`,
-        time: serverTimestamp(),
-        read: false
-      });
+      if (response.ok) {
+        alert("Verification link resent! Please check your inbox.");
+      } else {
+        alert("Failed to resend. Please try again later.");
+      }
     } catch (err) {
-      console.error("Re-apply failed:", err);
-    } finally {
-      setProfileLoading(false);
+      console.error("Resend error:", err);
     }
   };
 
@@ -808,19 +814,25 @@ export default function App() {
   const [sessionStatus, setSessionStatus] = useState<'waiting' | 'connecting' | 'live' | 'disconnected'>('waiting');
   const [liveMessages, setLiveMessages] = useState<{id: string, sender: string, text: string, time: string}[]>([]);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
-  const localVideoRef = useRef<HTMLVideoElement>(null);
-  const screenStreamRef = useRef<MediaStream | null>(null);
-
   const [activeMeetingId, setActiveMeetingId] = useState<string | null>(null);
+  const [sessionTopic, setSessionTopic] = useState("");
+  const [showTopicModal, setShowTopicModal] = useState(false);
+  const [showEndChoiceModal, setShowEndChoiceModal] = useState(false);
+  const [pendingEndAction, setPendingEndAction] = useState<'complete' | 'reschedule' | null>(null);
   const [talkingTime, setTalkingTime] = useState(0);
-  const talkingTimeRef = useRef(0);
+
+  // WebRTC & Session Refs
+  const socketRef = useRef<any>(null);
+  const peersRef = useRef<Map<string, RTCPeerConnection>>(new Map());
+  const [remoteStreams, setRemoteStreams] = useState<{socketId: string, stream: MediaStream, userId: string, userName?: string}[]>([]);
+  const localStreamRef = useRef<MediaStream | null>(null);
+  const screenStreamRef = useRef<MediaStream | null>(null);
+  const localVideoRef = useRef<HTMLVideoElement>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const detectionIntervalRef = useRef<any>(null);
-
-
-  const socketRef = useRef<any>(null);
+  const talkingTimeRef = useRef(0);
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
 
@@ -917,67 +929,19 @@ export default function App() {
   }, [bookings, profile?.id, notifications]);
 
 
-  const handleScreenShare = async () => {
-    if (isScreenSharing) {
-      if (screenStreamRef.current) {
-        screenStreamRef.current.getTracks().forEach(track => track.stop());
-        screenStreamRef.current = null;
-      }
-      setIsScreenSharing(false);
-      
-      // Update Firestore state
-      if (activeMeetingId) {
-        updateDoc(doc(db, 'live_sessions', activeMeetingId), {
-          tutorSharing: false
-        }).catch(e => console.error(e));
-      }
-
-      setIsCamOn(false);
-      setTimeout(() => setIsCamOn(true), 100);
-    } else {
-      try {
-        const stream = await (navigator.mediaDevices as any).getDisplayMedia({ video: true });
-        screenStreamRef.current = stream;
-        if (localVideoRef.current) {
-          localVideoRef.current.srcObject = stream;
-        }
-        setIsScreenSharing(true);
-
-        // Update Firestore state
-        if (activeMeetingId) {
-          updateDoc(doc(db, 'live_sessions', activeMeetingId), {
-            tutorSharing: true
-          }).catch(e => console.error(e));
-        }
-
-        stream.getVideoTracks()[0].onended = () => {
-          setIsScreenSharing(false);
-          setIsCamOn(true);
-          if (activeMeetingId) {
-            updateDoc(doc(db, 'live_sessions', activeMeetingId), {
-              tutorSharing: false
-            }).catch(e => console.error(e));
-          }
-        };
-      } catch (err) {
-        console.error("Error sharing screen:", err);
-      }
-    }
-  };
-
   useEffect(() => {
-    let stream: MediaStream | null = null;
+    let currentStream: MediaStream | null = null;
     const startCamera = async () => {
       try {
         if (isCamOn && currentPage === 'live-class' && sessionStatus !== 'disconnected') {
-          stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: isMicOn });
-          streamRef.current = stream;
+          currentStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: isMicOn });
+          streamRef.current = currentStream;
           if (localVideoRef.current) {
-            localVideoRef.current.srcObject = stream;
+            localVideoRef.current.srcObject = currentStream;
           }
         } else {
-          if (stream) {
-            stream.getTracks().forEach(track => track.stop());
+          if (currentStream) {
+            currentStream.getTracks().forEach(track => track.stop());
           }
           if (localVideoRef.current) {
             localVideoRef.current.srcObject = null;
@@ -989,23 +953,54 @@ export default function App() {
     };
     startCamera();
     return () => {
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
+      if (currentStream) {
+        currentStream.getTracks().forEach(track => track.stop());
       }
     };
   }, [isCamOn, isMicOn, currentPage, sessionStatus]);
-  
-  const [showTopicModal, setShowTopicModal] = useState(false);
-  const [sessionTopic, setSessionTopic] = useState('');
-  const [showEndChoiceModal, setShowEndChoiceModal] = useState(false);
-  const [pendingEndAction, setPendingEndAction] = useState<'complete' | 'reschedule' | null>(null);
+
+  const handleScreenShare = async () => {
+    if (isScreenSharing) {
+      if (localStreamRef.current) {
+        // Stop screen tracks
+        localStreamRef.current.getTracks().forEach(track => {
+          if (track.label.includes('screen') || track.kind === 'video') {
+             // We'll reset to camera later
+          }
+        });
+      }
+      setIsScreenSharing(false);
+      // Restart camera logic will trigger via useEffect [isCamOn]
+    } else {
+      try {
+        const screenStream = await (navigator.mediaDevices as any).getDisplayMedia({ video: true });
+        const screenTrack = screenStream.getVideoTracks()[0];
+        
+        // Replace track for all peers
+        peersRef.current.forEach(pc => {
+          const sender = pc.getSenders().find(s => s.track?.kind === 'video');
+          if (sender) sender.replaceTrack(screenTrack);
+        });
+
+        if (localVideoRef.current) localVideoRef.current.srcObject = screenStream;
+        setIsScreenSharing(true);
+
+        screenTrack.onended = () => {
+          setIsScreenSharing(false);
+          // Camera restart will be handled by useEffect
+        };
+      } catch (err) {
+        console.error("Error sharing screen:", err);
+      }
+    }
+  };
 
   const startSession = async (bookingId: string) => {
     setCurrentPage('live-class');
     setSessionStatus('connecting');
     setActiveMeetingId(bookingId);
 
-    // Track tutor joined in booking
+    // 1. Track tutor joined in booking
     const bookingRef = doc(db, 'bookings', bookingId);
     await updateDoc(bookingRef, { 
       tutorJoined: true, 
@@ -1014,23 +1009,18 @@ export default function App() {
       startedAt: serverTimestamp()
     });
 
-    // Initialize/Update Live Session in Firestore
+    // 2. Initialize/Update Live Session in Firestore
     const sessionRef = doc(db, 'live_sessions', bookingId);
     await setDoc(sessionRef, {
       tutorId: profile.id,
       tutorName: profile.name,
       tutorJoined: true,
-      tutorMicOn: isMicOn,
-      tutorCamOn: isCamOn,
-      tutorSharing: false,
       status: 'live',
-      participants: [profile.name],
       startTime: serverTimestamp(),
-      lastUpdate: serverTimestamp(),
-      startedAt: serverTimestamp() // Secondary sync for UI redundancy
+      lastUpdate: serverTimestamp()
     }, { merge: true });
 
-    // Listen for reactions, student entry & messages
+    // 3. Setup Listeners
     const unsub = onSnapshot(sessionRef, (snap) => {
       if (!snap.exists()) return;
       const data = snap.data();
@@ -1049,135 +1039,130 @@ export default function App() {
       setLiveMessages(msgs);
     });
 
+    // 4. Initialize Local Media
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      localStreamRef.current = stream;
+      if (localVideoRef.current) localVideoRef.current.srcObject = stream;
+      
+      // Start voice detection for talking time
+      startVoiceDetection(stream);
+    } catch (err) {
+      console.error("Media Access Denied:", err);
+    }
 
-    // Socket.IO WebRTC Signaling Setup
+    // 5. Socket.IO Signaling Setup
     socketRef.current = io('http://localhost:5001');
-    socketRef.current.emit('join-room', bookingId);
+    socketRef.current.emit('join-room', { 
+      roomId: bookingId, 
+      userId: profile.id, 
+      userName: profile.name 
+    });
 
-    const configuration = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
-    
-    const initPeerConnection = () => {
-      const pc = new RTCPeerConnection(configuration);
+    socketRef.current.on('all-users', (users: any[]) => {
+      users.forEach(user => {
+        const pc = createPeerConnection(user.socketId, bookingId);
+        peersRef.current.set(user.socketId, pc);
+        pc.createOffer().then(offer => {
+          pc.setLocalDescription(offer);
+          socketRef.current.emit('signal', { to: user.socketId, signal: offer });
+        });
+      });
+    });
+
+    socketRef.current.on('signal', async ({ from, signal }: any) => {
+      let pc = peersRef.current.get(from);
+      if (signal.type === 'offer') {
+        if (!pc) {
+          pc = createPeerConnection(from, bookingId);
+          peersRef.current.set(from, pc);
+        }
+        await pc.setRemoteDescription(new RTCSessionDescription(signal));
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        socketRef.current.emit('signal', { to: from, signal: answer });
+      } else if (signal.type === 'answer') {
+        if (pc) await pc.setRemoteDescription(new RTCSessionDescription(signal));
+      } else if (signal.candidate) {
+        if (pc) await pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
+      }
+    });
+
+    socketRef.current.on('user-joined', ({ socketId, userName }: any) => {
+      console.log("👤 Student Joined:", userName);
+      setSessionStatus('live');
+    });
+
+    socketRef.current.on('user-left', (socketId: string) => {
+      const pc = peersRef.current.get(socketId);
+      if (pc) pc.close();
+      peersRef.current.delete(socketId);
+      setRemoteStreams(prev => prev.filter(s => s.socketId !== socketId));
+    });
+
+    socketRef.current.on('receive-message', (data: any) => {
+      setLiveMessages(prev => [...prev, data]);
+    });
+
+    // Store unsubs for cleanup in endSession if needed, but here we just let them run
+    // until the component unmounts or endSession is called.
+    (window as any)._sessionUnsub = () => { unsub(); msgUnsub(); };
+  };
+
+  const createPeerConnection = (socketId: string, roomId: string) => {
+    const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+    pc.onicecandidate = (e) => {
+      if (e.candidate) {
+        socketRef.current.emit('signal', { to: socketId, signal: { candidate: e.candidate } });
+      }
+    };
+    pc.ontrack = (e) => {
+      setRemoteStreams(prev => {
+        if (prev.find(s => s.socketId === socketId)) return prev;
+        return [...prev, { socketId, stream: e.streams[0], userId: 'student' }];
+      });
+      setSessionStatus('live');
+    };
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach(track => pc.addTrack(track, localStreamRef.current!));
+    }
+    return pc;
+  };
+
+  const startVoiceDetection = (stream: MediaStream) => {
+    try {
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const source = audioContext.createMediaStreamSource(stream);
+      const analyser = audioContext.createAnalyser();
+      analyser.fftSize = 256;
+      source.connect(analyser);
       
-      pc.onicecandidate = (event) => {
-        if (event.candidate) {
-          socketRef.current.emit('ice-candidate', { candidate: event.candidate, roomId: bookingId });
-        }
-      };
-
-      pc.ontrack = (event) => {
-        if (remoteVideoRef.current) {
-          remoteVideoRef.current.srcObject = event.streams[0];
-        }
-      };
-
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => pc.addTrack(track, streamRef.current!));
-      }
-
-      peerConnectionRef.current = pc;
-      return pc;
-    };
-
-    socketRef.current.on('user-connected', async () => {
-      const pc = initPeerConnection();
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-      socketRef.current.emit('offer', { offer, roomId: bookingId });
-    });
-
-    socketRef.current.on('offer', async (offer: any) => {
-      const pc = initPeerConnection();
-      await pc.setRemoteDescription(new RTCSessionDescription(offer));
-      const answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
-      socketRef.current.emit('answer', { answer, roomId: bookingId });
-    });
-
-    socketRef.current.on('answer', async (answer: any) => {
-      if (peerConnectionRef.current) {
-        await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(answer));
-      }
-    });
-
-    socketRef.current.on('ice-candidate', async (candidate: any) => {
-      if (peerConnectionRef.current) {
-        try {
-          await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(candidate));
-        } catch (e) { console.error("Error adding ice candidate", e); }
-      }
-    });
-
-    const startVoiceDetection = (stream: MediaStream) => {
-      try {
-        const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-        const source = audioContext.createMediaStreamSource(stream);
-        const analyser = audioContext.createAnalyser();
-        analyser.fftSize = 256;
-        source.connect(analyser);
-        
-        audioContextRef.current = audioContext;
-        analyserRef.current = analyser;
-        
-        const bufferLength = analyser.frequencyBinCount;
-        const dataArray = new Uint8Array(bufferLength);
-        
-        detectionIntervalRef.current = setInterval(() => {
-          if (!analyserRef.current) return;
-          analyserRef.current.getByteFrequencyData(dataArray);
-          
-          // Check average volume
-          let sum = 0;
-          for (let i = 0; i < bufferLength; i++) {
-            sum += dataArray[i];
-          }
-          const average = sum / bufferLength;
-          
-          if (average > 15) { // Threshold for talking
-            talkingTimeRef.current += 1;
-            setTalkingTime(talkingTimeRef.current);
-            
-            // Periodically sync to DB for the audit engine
-            if (talkingTimeRef.current % 30 === 0 && activeMeetingId) {
-               updateDoc(doc(db, 'bookings', activeMeetingId), { talkingTime: talkingTimeRef.current });
-            }
-          }
-        }, 1000);
-      } catch (e) {
-        console.error("Audio detection error:", e);
-      }
-    };
-
-    setTimeout(async () => {
-      // We join the room, but we don't set 'live' status yet if it's the first time
-      const bSnap = await getDoc(bookingRef);
-      if (bSnap.exists()) {
-        const bData = bSnap.data();
-        if (bData.startedAt) {
-          setSessionStartTime(bData.startedAt.toDate());
-          setSessionStatus('live');
-        } else {
-          setSessionStatus('waiting'); // Wait for tutor to click "Start"
-        }
-      }
+      audioContextRef.current = audioContext;
+      analyserRef.current = analyser;
       
-      // Start voice detection (always on when in room)
-      try {
-        const aStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        streamRef.current = aStream;
-        startVoiceDetection(aStream);
-      } catch (err) {
-        console.error("Error starting mic for detection:", err);
-      }
-    }, 1500);
-
-    return () => {
-      unsub();
-      msgUnsub();
-      if (detectionIntervalRef.current) clearInterval(detectionIntervalRef.current);
-      if (audioContextRef.current) audioContextRef.current.close();
-      if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
-    };
+      const bufferLength = analyser.frequencyBinCount;
+      const dataArray = new Uint8Array(bufferLength);
+      
+      detectionIntervalRef.current = setInterval(() => {
+        if (!analyserRef.current) return;
+        analyserRef.current.getByteFrequencyData(dataArray);
+        
+        let sum = 0;
+        for (let i = 0; i < bufferLength; i++) sum += dataArray[i];
+        const average = sum / bufferLength;
+        
+        if (average > 15) { // Threshold for talking
+          talkingTimeRef.current += 1;
+          setTalkingTime(talkingTimeRef.current);
+          
+          if (talkingTimeRef.current % 30 === 0 && activeMeetingId) {
+             updateDoc(doc(db, 'bookings', activeMeetingId), { talkingTime: talkingTimeRef.current });
+          }
+        }
+      }, 1000);
+    } catch (e) {
+      console.error("Audio detection error:", e);
+    }
   };
 
   const endSession = async () => {
@@ -1244,6 +1229,21 @@ export default function App() {
         completedAt: serverTimestamp(),
         attendance_status: isValidClass ? 'attended' : 'not_attended'
       };
+
+      // 🛑 WebRTC & Listener CLEANUP 🛑
+      if ((window as any)._sessionUnsub) {
+        (window as any)._sessionUnsub();
+        delete (window as any)._sessionUnsub;
+      }
+      if (socketRef.current) socketRef.current.disconnect();
+      peersRef.current.forEach(pc => pc.close());
+      peersRef.current.clear();
+      if (localStreamRef.current) {
+        localStreamRef.current.getTracks().forEach(t => t.stop());
+        localStreamRef.current = null;
+      }
+      setRemoteStreams([]);
+      setSessionStatus('disconnected');
 
       if (bookingData.isGroup && bookingData.participantData) {
         const updatedParticipantData = { ...bookingData.participantData };
@@ -1767,8 +1767,8 @@ export default function App() {
     }
 
     // 4. AUTHENTICATED BUT NO PROFILE FOUND (True Registration Incomplete)
-    if (!profile) {
-      if (view === 'app') {
+    if (!profile || isReapplying) {
+      if (view === 'app' && !isReapplying) {
         // We expected a profile but didn't find one - show a small wait state before forcing registration
         return (
           <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 text-center">
@@ -1785,11 +1785,93 @@ export default function App() {
           </div>
         );
       }
-      return <Registration currentUser={user} onComplete={() => setView('app')} onSwitchToLogin={handleLogout} isCompletingProfile={true} notice="You are not registered. Try to registration now." />;
+      return (
+        <Registration 
+          currentUser={user} 
+          onComplete={() => {
+            setIsReapplying(false);
+            setView('app');
+          }} 
+          onSwitchToLogin={handleLogout} 
+          isCompletingProfile={!isReapplying} 
+          isDirectReapply={isReapplying}
+          notice={isReapplying ? "You are in Re-application mode. Please correct your details and re-submit for review." : "You are not registered. Please complete your registration now."} 
+        />
+      );
     }
 
-    // 4. STATUS GATE: PENDING / REVIEW (Default state for non-approved profiles)
-    if (profile.status === 'pending' || (profile.status !== 'approved' && profile.status !== 'rejected' && profile.status !== 'blocked')) {
+    // 4. STATUS GATE: EMAIL NOT VERIFIED (Includes Post-Approval Verification Requirement)
+    if (profile.email_verified === false) {
+      const isApproved = profile.status === 'approved';
+      return (
+        <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 text-center">
+          <div className="w-24 h-24 bg-primary/10 rounded-full flex items-center justify-center mb-8 relative">
+            <ShieldCheck size={40} className={cn("text-primary", isApproved ? "animate-pulse" : "animate-bounce")} />
+            <div className="absolute inset-0 border-4 border-primary/20 border-t-primary rounded-full animate-spin-slow"></div>
+          </div>
+          <h2 className="text-3xl font-black mb-4 tracking-tight text-slate-800">
+            {isApproved ? 'Activate Your Dashboard' : 'Verify Your Email'}
+          </h2>
+          <p className="text-slate-500 font-bold max-w-md mb-10 text-sm leading-relaxed">
+            {isApproved 
+              ? `Congratulations! Your profile has been approved. We've sent a magic link to ${user.email}. Click that link to activate your dashboard access.`
+              : `We've sent a verification link to ${user.email}. Please check your inbox and click the link to verify your ownership.`}
+          </p>
+
+          <div className="flex flex-col gap-4 w-full max-w-xs">
+            <button 
+              onClick={handleResendVerification}
+              className="w-full bg-primary text-white font-black py-4 rounded-2xl shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all text-xs uppercase tracking-widest"
+            >
+              Resend Magic Link
+            </button>
+            <button 
+              onClick={handleLogout}
+              className="w-full bg-slate-100 text-slate-600 font-black py-4 rounded-2xl hover:bg-slate-200 transition-all text-xs uppercase tracking-widest"
+            >
+              Sign Out
+            </button>
+          </div>
+          <p className="mt-8 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+            {isApproved ? 'Approved Status: Pending Activation' : 'Eduqra Security Protocol'}
+          </p>
+        </div>
+      );
+    }
+
+    // 4. STATUS GATE: REJECTED (High Priority Feedback)
+    if (profile.status === 'rejected') {
+      return (
+        <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 text-center">
+          <div className="w-28 h-28 bg-rose-500 rounded-full flex items-center justify-center mb-10 shadow-2xl shadow-rose-500/30">
+            <XCircle size={56} className="text-white" />
+          </div>
+          <h2 className="text-4xl font-black mb-4 tracking-tight text-on-surface">Application Update</h2>
+          <p className="text-rose-600 font-black uppercase text-[10px] mb-8 bg-rose-50 px-4 py-2 rounded-full border border-rose-100">Verification Feedback Received</p>
+          
+          <div className="max-w-md w-full bg-slate-50 border-l-4 border-rose-500 p-8 rounded-4xl mb-10 text-left">
+            <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">Feedback from Administration:</p>
+            <p className="text-slate-700 font-bold italic text-base leading-relaxed mb-6">"{profile.rejectionReason || 'Please review your uploaded documents and ensure they are clearly legible.'}"</p>
+            <p className="text-[11px] text-slate-500 font-medium leading-relaxed">
+              Every expert was once a beginner. We believe in your potential! Please address the feedback above and re-apply to join our global network of educators.
+            </p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-center gap-4 w-full max-w-md">
+            <button onClick={handleReapply} className="w-full bg-primary text-white font-black px-8 py-5 rounded-2xl shadow-2xl shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all text-xs flex items-center justify-center gap-3">
+              <ShieldCheck size={18} /> Update Details & Re-apply
+            </button>
+            <button onClick={handleLogout} className="w-full bg-slate-100 text-slate-600 font-black px-8 py-5 rounded-2xl hover:bg-slate-200 transition-all text-xs uppercase tracking-widest">
+              Sign Out
+            </button>
+          </div>
+          <p className="mt-12 text-[10px] font-black text-slate-300 uppercase tracking-[0.4em]">Eduqra Global Atelier</p>
+        </div>
+      );
+    }
+
+    // 5. STATUS GATE: PENDING / REVIEW (Default state for non-approved profiles)
+    if (profile.status === 'pending' || (profile.status !== 'approved' && profile.status !== 'blocked')) {
       return (
         <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 text-center">
           <div className="w-24 h-24 bg-amber-100 rounded-full flex items-center justify-center mb-8 relative">
@@ -1828,34 +1910,6 @@ export default function App() {
 
           <button onClick={handleLogout} className="text-white font-black bg-slate-800 hover:bg-black px-10 py-4 rounded-2xl uppercase text-xs transition-colors shadow-2xl shadow-slate-200">Sign Out</button>
           <p className="mt-8 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Eduqra Global Academic Atelier</p>
-        </div>
-      );
-    }
-
-    // 5. STATUS GATE: REJECTED
-    if (profile.status === 'rejected') {
-      return (
-        <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 text-center">
-          <div className="w-28 h-28 bg-rose-500 rounded-full flex items-center justify-center mb-10 shadow-2xl shadow-rose-500/30">
-            <XCircle size={56} className="text-white" />
-          </div>
-          <h2 className="text-4xl font-black mb-4 tracking-tight text-on-surface">Application Status</h2>
-          <p className="text-rose-600 font-black uppercase text-[10px] mb-8 bg-rose-50 px-4 py-2 rounded-full border border-rose-100">Verification Update</p>
-          
-          <div className="max-w-md w-full bg-slate-50 border-l-4 border-rose-500 p-8 rounded-4xl mb-10 text-left">
-            <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">Feedback from Administration:</p>
-            <p className="text-slate-700 font-bold italic text-base leading-relaxed mb-6">"{profile.rejectionReason || 'Please review your uploaded documents and ensure they are clearly legible.'}"</p>
-            <p className="text-[11px] text-slate-500 font-medium leading-relaxed">
-              Every expert was once a beginner. We believe in your potential! Please address the feedback above and re-apply to join our global network of educators.
-            </p>
-          </div>
-
-          <div className="flex flex-col sm:flex-row items-center gap-4 w-full max-w-md">
-            <button onClick={handleReapply} className="w-full bg-primary text-white font-black px-8 py-5 rounded-2xl shadow-2xl shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all text-xs flex items-center justify-center gap-3">
-              <ShieldCheck size={18} /> Update Details & Re-apply
-            </button>
-            <button onClick={handleLogout} className="w-full sm:w-auto text-slate-400 font-bold px-8 py-5 text-[10px]">Sign Out</button>
-          </div>
         </div>
       );
     }
@@ -1987,68 +2041,33 @@ export default function App() {
                           )}
                         </div>
 
-                        {/* Remote Participant(s) */}
-                        <div className="relative bg-[#1A1A1E] rounded-[1.5rem] md:rounded-[2.5rem] overflow-hidden shadow-2xl border border-white/5 flex items-center justify-center group p-8">
-                          {(() => {
-                            const b = bookings.find(bk => bk.id.toString() === activeMeetingId);
-                            if (b?.isGroup) {
-                              return (
-                                <div className="w-full h-full flex flex-col items-center justify-center gap-6">
-                                  <div className="flex -space-x-4">
-                                    {[1, 2, 3].map((_, i) => (
-                                      <div key={i} className={`w-12 h-12 md:w-16 md:h-16 rounded-full border-4 border-[#1A1A1E] flex items-center justify-center font-black ${i === 0 ? 'bg-primary/20 text-primary' : i === 1 ? 'bg-amber-500/20 text-amber-500' : 'bg-rose-500/20 text-rose-500'}`}>
-                                        <User size={24} />
-                                      </div>
-                                    ))}
-                                    {b.participantCount && b.participantCount > 3 && (
-                                      <div className="w-12 h-12 md:w-16 md:h-16 rounded-full border-4 border-[#1A1A1E] bg-[#2A2A30] flex items-center justify-center font-black text-white/40 text-xs">
-                                        +{b.participantCount - 3}
-                                      </div>
-                                    )}
-                                  </div>
-                                  <div className="text-center">
-                                    <p className="text-sm md:text-xl font-serif italic text-white/80">Group Session</p>
-                                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-500 mt-2">
-                                      {b.participantCount || 0}/5 Participants Enrolled
-                                    </p>
-                                  </div>
-                                  <div className="w-full max-w-sm grid grid-cols-1 gap-2 overflow-y-auto max-h-[200px] pr-2 custom-scrollbar">
-                                    {Object.entries(b.participantData || {}).map(([email, p]: [string, any]) => (
-                                      <div key={email} className="flex items-center justify-between p-3 bg-white/5 rounded-xl border border-white/5">
-                                        <div className="flex items-center gap-3">
-                                          <div className={`w-2 h-2 rounded-full ${!p.leaveTime && p.joinTime ? 'bg-emerald-500 animate-pulse' : 'bg-white/10'}`} />
-                                          <span className="text-[10px] font-bold text-white/60">{p?.name || email.split('@')[0]}</span>
-                                        </div>
-                                        <span className={`text-[8px] font-black uppercase tracking-tighter ${!p.leaveTime && p.joinTime ? 'text-emerald-500' : 'text-white/20'}`}>
-                                          {!p.leaveTime && p.joinTime ? 'Live' : 'Offline'}
-                                        </span>
-                                      </div>
-                                    ))}
-                                  </div>
+                        {/* Remote Participant(s) Grid */}
+                        <div className={cn(
+                          "w-full h-full max-w-6xl grid gap-4 md:gap-6 items-stretch",
+                          remoteStreams.length <= 1 ? "grid-cols-1 md:grid-cols-2" : "grid-cols-2 md:grid-cols-3"
+                        )}>
+                          {remoteStreams.map((rs) => (
+                            <div key={rs.socketId} className="relative bg-[#1A1A1E] rounded-[1.5rem] md:rounded-[2.5rem] overflow-hidden shadow-2xl border border-white/5 flex items-center justify-center group">
+                               <video 
+                                  ref={(el) => { if (el) el.srcObject = rs.stream; }}
+                                  autoPlay 
+                                  playsInline 
+                                  className="w-full h-full object-cover"
+                                />
+                                <div className="absolute inset-x-0 bottom-0 p-4 md:p-6 bg-gradient-to-t from-black/80 via-black/40 to-transparent">
+                                  <p className="text-xs md:text-sm font-bold text-white/90">{rs.userName || 'Student'}</p>
                                 </div>
-                              );
-                            } else {
-                              // Student 1-on-1 logic
-                              return sessionStatus === 'live' ? (
-                                <div className="w-full h-full relative">
-                                  <video 
-                                    ref={remoteVideoRef} 
-                                    autoPlay 
-                                    playsInline 
-                                    className="w-full h-full object-cover"
-                                  />
-                                  <div className="absolute inset-x-0 bottom-0 p-6 bg-gradient-to-t from-black/80 via-black/40 to-transparent">
-                                    <p className="text-sm font-bold text-white/90">Student</p>
-                                  </div>
-                                </div>
-                              ) : (
-                                <div className="text-center space-y-6">
+                            </div>
+                          ))}
+
+                          {remoteStreams.length === 0 && (
+                            <div className="relative bg-[#1A1A1E] rounded-[1.5rem] md:rounded-[2.5rem] overflow-hidden shadow-2xl border border-white/5 flex items-center justify-center group p-8">
+                               <div className="text-center space-y-6">
                                   <div className="w-12 h-12 border-4 border-white/5 border-t-primary rounded-full animate-spin mx-auto"></div>
-                                  <p className="text-[10px] font-bold uppercase tracking-widest text-white/20">Waiting for Student...</p>
+                                  <p className="text-[10px] font-bold uppercase tracking-widest text-white/20">Waiting for Students...</p>
                                 </div>
-                              );
-                            }
-                          })()}
+                            </div>
+                          )}
                         </div>
                       </div>
 
