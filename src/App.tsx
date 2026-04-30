@@ -205,7 +205,8 @@ export default function App() {
   const handleResendVerification = async () => {
     if (!user || !profile) return;
     try {
-      const response = await fetch('http://localhost:5001/api/auth/send-verification', {
+      const hostname = window.location.hostname;
+      const response = await fetch(`http://${hostname}:5001/api/auth/send-verification`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1052,7 +1053,8 @@ export default function App() {
     }
 
     // 5. Socket.IO Signaling Setup
-    socketRef.current = io('http://localhost:5001');
+    const hostname = window.location.hostname;
+    socketRef.current = io(`http://${hostname}:5001`);
     socketRef.current.emit('join-room', { 
       roomId: bookingId, 
       userId: profile.id, 

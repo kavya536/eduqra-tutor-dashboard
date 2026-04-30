@@ -496,7 +496,8 @@ export function Registration({
         // We continue anyway as the backend might still work
       }
 
-      const response = await fetch('http://localhost:5001/api/register-tutor', {
+      const hostname = window.location.hostname;
+      const response = await fetch(`http://${hostname}:5001/api/register-tutor`, {
         method: 'POST',
         body: registerData
       });
