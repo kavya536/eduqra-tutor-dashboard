@@ -247,7 +247,7 @@ export function Registration({
       setError(null);
 
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        setError("🔒 Secure Connection Required: Camera access is only available over HTTPS or Localhost.");
+        setError("🔒 Secure Connection Required: Camera access is blocked on insecure IP addresses. \n\nWorkaround for Chrome: \n1. Go to chrome://flags/#unsafely-treat-insecure-origin-as-secure \n2. Add 'http://10.248.6.6:3001' to the list \n3. Enable and Relaunch Chrome.");
         return;
       }
 

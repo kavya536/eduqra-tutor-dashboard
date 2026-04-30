@@ -1800,46 +1800,51 @@ export default function App() {
       );
     }
 
-    // 4. STATUS GATE: EMAIL NOT VERIFIED (Includes Post-Approval Verification Requirement)
-    if (profile.email_verified === false) {
-      const isApproved = profile.status === 'approved';
+    // 4. STATUS GATE: PENDING / REVIEW (Highest priority for new accounts)
+    if (profile.status === 'pending' || (profile.status !== 'approved' && profile.status !== 'rejected' && profile.status !== 'blocked')) {
       return (
         <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 text-center">
-          <div className="w-24 h-24 bg-primary/10 rounded-full flex items-center justify-center mb-8 relative">
-            <ShieldCheck size={40} className={cn("text-primary", isApproved ? "animate-pulse" : "animate-bounce")} />
-            <div className="absolute inset-0 border-4 border-primary/20 border-t-primary rounded-full animate-spin-slow"></div>
+          <div className="w-24 h-24 bg-amber-100 rounded-full flex items-center justify-center mb-8 relative">
+            <Clock size={40} className="text-amber-500 animate-pulse" />
+            <div className="absolute inset-0 border-4 border-amber-500/20 border-t-amber-500 rounded-full animate-spin-slow"></div>
           </div>
-          <h2 className="text-3xl font-black mb-4 tracking-tight text-slate-800">
-            {isApproved ? 'Activate Your Dashboard' : 'Verify Your Email'}
-          </h2>
+          <h2 className="text-3xl font-black mb-4 tracking-tight text-slate-800">Application Under Review</h2>
           <p className="text-slate-500 font-bold max-w-md mb-10 text-sm leading-relaxed">
-            {isApproved 
-              ? `Congratulations! Your profile has been approved. We've sent a magic link to ${user.email}. Click that link to activate your dashboard access.`
-              : `We've sent a verification link to ${user.email}. Please check your inbox and click the link to verify your ownership.`}
+            Your tutor application is under admin review. <br/>
+            <span className="block mt-2 text-primary font-black uppercase text-[11px] tracking-widest">Please wait up to 24 hours for verification and approval.</span>
           </p>
 
-          <div className="flex flex-col gap-4 w-full max-w-xs">
-            <button 
-              onClick={handleResendVerification}
-              className="w-full bg-primary text-white font-black py-4 rounded-2xl shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all text-xs uppercase tracking-widest"
-            >
-              Resend Magic Link
-            </button>
-            <button 
-              onClick={handleLogout}
-              className="w-full bg-slate-100 text-slate-600 font-black py-4 rounded-2xl hover:bg-slate-200 transition-all text-xs uppercase tracking-widest"
-            >
-              Sign Out
-            </button>
+          <div className="max-w-md w-full bg-slate-50/50 border border-slate-100 p-8 rounded-4xl mb-12 text-left">
+            <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-6">Verification Progress:</h4>
+            <div className="space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="w-6 h-6 bg-green-500/10 rounded-full flex items-center justify-center">
+                  <Check size={14} className="text-green-600" />
+                </div>
+                <span className="text-sm font-bold text-slate-400 line-through">Profile Registered Successfully</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="w-6 h-6 bg-amber-500/10 rounded-full flex items-center justify-center">
+                  <div className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-ping"></div>
+                </div>
+                <span className="text-sm font-bold text-slate-600">Waiting for Super Admin Approval</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="w-6 h-6 bg-slate-200 rounded-full flex items-center justify-center">
+                  <div className="w-1.5 h-1.5 bg-slate-400 rounded-full"></div>
+                </div>
+                <span className="text-sm font-bold text-slate-400">Magic Link Activation (Post-Approval)</span>
+              </div>
+            </div>
           </div>
-          <p className="mt-8 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-            {isApproved ? 'Approved Status: Pending Activation' : 'Eduqra Security Protocol'}
-          </p>
+
+          <button onClick={handleLogout} className="text-white font-black bg-slate-800 hover:bg-black px-10 py-4 rounded-2xl uppercase text-xs transition-colors shadow-2xl shadow-slate-200">Sign Out</button>
+          <p className="mt-8 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Eduqra Global Academic Atelier</p>
         </div>
       );
     }
 
-    // 4. STATUS GATE: REJECTED (High Priority Feedback)
+    // 5. STATUS GATE: REJECTED (Show feedback immediately)
     if (profile.status === 'rejected') {
       return (
         <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 text-center">
@@ -1870,46 +1875,47 @@ export default function App() {
       );
     }
 
-    // 5. STATUS GATE: PENDING / REVIEW (Default state for non-approved profiles)
-    if (profile.status === 'pending' || (profile.status !== 'approved' && profile.status !== 'blocked')) {
+    // 6. STATUS GATE: APPROVED BUT NOT ACTIVATED (Magic Link Activation Flow)
+    if (profile.status === 'approved' && profile.email_verified === false) {
       return (
-        <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 text-center">
-          <div className="w-24 h-24 bg-amber-100 rounded-full flex items-center justify-center mb-8 relative">
-            <Clock size={40} className="text-amber-500 animate-pulse" />
-            <div className="absolute inset-0 border-4 border-amber-500/20 border-t-amber-500 rounded-full animate-spin-slow"></div>
-          </div>
-          <h2 className="text-3xl font-black mb-4 tracking-tight text-slate-800">Application Under Review</h2>
-          <p className="text-slate-500 font-bold max-w-md mb-10 text-sm leading-relaxed">
-            Thank you for registering! Our Super Admin team will verify your details and credentials. 
-            <span className="block mt-2 text-primary font-black uppercase text-[11px] tracking-widest">You will get a response regarding your approval within 24 hours.</span>
-          </p>
-
-          <div className="max-w-md w-full bg-slate-50/50 border border-slate-100 p-8 rounded-4xl mb-12 text-left">
-            <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-6">Verification Progress:</h4>
-            <div className="space-y-4">
-              <div className="flex items-center gap-3">
-                <div className="w-6 h-6 bg-green-500/10 rounded-full flex items-center justify-center">
-                  <Check size={14} className="text-green-600" />
+        <div className="min-h-screen bg-white flex flex-col items-center justify-center p-6 text-center">
+           {/* Exact Match to Screenshot UI */}
+           <div className="relative mb-12">
+            <div className="w-32 h-32 bg-primary/5 rounded-full flex items-center justify-center">
+              <div className="w-24 h-24 bg-white rounded-full shadow-xl flex items-center justify-center relative">
+                <div className="absolute inset-[-8px] border-[3px] border-primary/20 border-t-primary rounded-full animate-spin-slow"></div>
+                <div className="w-16 h-16 bg-primary/5 rounded-full flex items-center justify-center">
+                  <ShieldCheck size={32} className="text-[#0047AB]" />
                 </div>
-                <span className="text-sm font-bold text-slate-400 line-through">Profile Registered Successfully</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="w-6 h-6 bg-amber-500/10 rounded-full flex items-center justify-center">
-                  <div className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-ping"></div>
-                </div>
-                <span className="text-sm font-bold text-slate-600">Waiting for Super Admin Approval</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="w-6 h-6 bg-slate-200 rounded-full flex items-center justify-center">
-                  <div className="w-1.5 h-1.5 bg-slate-400 rounded-full"></div>
-                </div>
-                <span className="text-sm font-bold text-slate-400">Dashboard Unlocked (Post-Approval)</span>
               </div>
             </div>
           </div>
 
-          <button onClick={handleLogout} className="text-white font-black bg-slate-800 hover:bg-black px-10 py-4 rounded-2xl uppercase text-xs transition-colors shadow-2xl shadow-slate-200">Sign Out</button>
-          <p className="mt-8 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Eduqra Global Academic Atelier</p>
+          <h2 className="text-5xl font-black mb-6 tracking-tighter text-slate-900">Verify Your Email</h2>
+          
+          <p className="text-slate-500 font-bold max-w-md mb-12 text-lg leading-relaxed">
+            We've sent a verification link to <span className="text-slate-800">{user.email}</span>. <br/>
+            Please check your inbox and click the link to verify your ownership.
+          </p>
+
+          <div className="flex flex-col gap-4 w-full max-w-xs">
+            <button 
+              onClick={handleResendVerification}
+              className="w-full bg-[#0047AB] text-white font-black py-5 rounded-[2rem] shadow-2xl shadow-blue-900/20 hover:scale-[1.02] active:scale-95 transition-all text-sm uppercase tracking-widest"
+            >
+              Resend Magic Link
+            </button>
+            <button 
+              onClick={handleLogout}
+              className="w-full bg-slate-50 text-slate-400 font-black py-5 rounded-[2rem] hover:bg-slate-100 transition-all text-sm uppercase tracking-widest"
+            >
+              Sign Out
+            </button>
+          </div>
+
+          <p className="mt-16 text-[11px] font-black text-slate-300 uppercase tracking-[0.3em]">
+            Eduqra Security Protocol
+          </p>
         </div>
       );
     }
