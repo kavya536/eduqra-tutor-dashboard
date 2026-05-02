@@ -97,8 +97,8 @@ export default function App() {
 
             // FLOW CONTROL: 
             // Avoid jumping to 'app' view if the user is actively registering or reapplying,
-            // UNLESS the status is already 'approved' AND email is verified.
-            if (data.status === 'approved' && data.email_verified) {
+            // UNLESS the status is already 'approved' AND account is activated.
+            if (data.status === 'approved' && data.activated) {
               setView('app');
             } else if (view !== 'register' && view !== 'login') {
               // If we are in 'app' or elsewhere, keep it there to show status screens
@@ -219,10 +219,12 @@ export default function App() {
       if (response.ok) {
         alert("Verification link resent! Please check your inbox.");
       } else {
-        alert("Failed to resend. Please try again later.");
+        const errorData = await response.json().catch(() => ({}));
+        alert(`Failed to resend: ${errorData.message || 'Server error'}. Please try again later.`);
       }
     } catch (err) {
       console.error("Resend error:", err);
+      alert(`Connection error: Could not reach the server at http://${window.location.hostname}:5001. Ensure the backend is running.`);
     }
   };
 
@@ -842,7 +844,15 @@ export default function App() {
     const setupNotifications = async () => {
       if (!messaging || !profile?.id) return;
 
+      // SECURITY: Push notifications require a secure context (HTTPS or localhost)
+      if (!window.isSecureContext) {
+        console.warn('⚠️ [SECURITY] Push notifications are disabled on insecure origins (HTTP IP). Use localhost or HTTPS.');
+        return;
+      }
+
       try {
+        if (!('Notification' in window)) return;
+        
         const permission = await Notification.requestPermission();
         if (permission === 'granted') {
           const token = await getToken(messaging, { 
@@ -935,6 +945,10 @@ export default function App() {
     const startCamera = async () => {
       try {
         if (isCamOn && currentPage === 'live-class' && sessionStatus !== 'disconnected') {
+          if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            console.error("Camera API not available in this browser/context.");
+            return;
+          }
           currentStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: isMicOn });
           streamRef.current = currentStream;
           if (localVideoRef.current) {
@@ -974,6 +988,10 @@ export default function App() {
       // Restart camera logic will trigger via useEffect [isCamOn]
     } else {
       try {
+        if (!navigator.mediaDevices || !(navigator.mediaDevices as any).getDisplayMedia) {
+          alert("🔒 Screen sharing is blocked on insecure IP addresses. Please use 'localhost' or a secure HTTPS connection.");
+          return;
+        }
         const screenStream = await (navigator.mediaDevices as any).getDisplayMedia({ video: true });
         const screenTrack = screenStream.getVideoTracks()[0];
         
@@ -1878,7 +1896,7 @@ export default function App() {
     }
 
     // 6. STATUS GATE: APPROVED BUT NOT ACTIVATED (Magic Link Activation Flow)
-    if (profile.status === 'approved' && profile.email_verified === false) {
+    if (profile.status === 'approved' && profile.activated === false) {
       return (
         <div className="min-h-screen bg-white flex flex-col items-center justify-center p-6 text-center">
            {/* Exact Match to Screenshot UI */}
