@@ -132,25 +132,43 @@ export function Availability({ slots, bookings, onAddSlot, onDeleteSlot, onEditS
     const slotsByDay: Record<string, any[]> = {};
     const activeBookings = bookings.filter(b => ['confirmed', 'pending', 'live', 'rescheduled'].includes(b.status));
 
+    const normalizeDate = (d: any) => {
+      if (!d) return '';
+      if (typeof d === 'string' && d.includes('-')) return d;
+      try {
+        const date = new Date(d);
+        if (isNaN(date.getTime())) return String(d);
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      } catch (e) {
+        return String(d);
+      }
+    };
+
     currentWeekDays.forEach(dayInfo => {
       const dateStr = dayInfo.date;
       
-      const dayBookings = activeBookings.filter(b => {
+      const dayBookingsRaw = activeBookings.filter(b => {
         if (!b.date) return false;
-        try {
-          const bDate = b.date.includes('-') ? b.date : new Date(b.date).toISOString().split('T')[0];
-          return bDate === dateStr;
-        } catch (e) {
-          return false;
-        }
+        return normalizeDate(b.date) === dateStr;
       });
 
-      // Filter slots that belong to this specific date
-      const daySlotsRaw = slots.filter(s => s.date === dateStr);
+      // De-duplicate bookings for the same student at the same time just in case of DB redundancy
+      const dayBookings: Booking[] = [];
+      const seen = new Set<string>();
+      dayBookingsRaw.forEach(b => {
+        const key = `${b.time}-${b.studentName || b.name || b.studentEmail}`;
+        if (!seen.has(key)) {
+          dayBookings.push(b);
+          seen.add(key);
+        }
+      });
       
       const processed: any[] = [];
 
-      // 1. First, add all bookings for this day as slots
+      // 1. First, add all unique bookings for this day as slots
       dayBookings.forEach(booking => {
         processed.push({
           id: `booking-${booking.id}`,
@@ -167,6 +185,8 @@ export function Availability({ slots, bookings, onAddSlot, onDeleteSlot, onEditS
       });
 
       // 2. Add manual slots ONLY if they are NOT already occupied by a booking
+      const daySlotsRaw = slots.filter(s => normalizeDate(s.date) === dateStr);
+      
       daySlotsRaw.forEach(s => {
         const sStartMins = parseTime(s.start);
         const sEndMins = parseTime(s.end);
@@ -315,13 +335,12 @@ export function Availability({ slots, bookings, onAddSlot, onDeleteSlot, onEditS
         </div>
 
         {/* Stats Section */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[
             { label: 'Pending Bookings', value: totalPending, icon: AlertCircle, color: 'text-amber-700', bg: 'bg-amber-50/50', desc: 'Waiting for your approval' },
             { label: 'Confirmed Sessions', value: totalConfirmed, icon: CheckCircle2, color: 'text-emerald-700', bg: 'bg-emerald-50', desc: 'Accepted classes' },
             { label: 'Demo Classes', value: totalDemos, icon: Video, color: 'text-amber-600', bg: 'bg-amber-50', desc: 'New student trials' },
-            { label: 'Regular Classes', value: totalRegular, icon: BookOpen, color: 'text-rose-600', bg: 'bg-rose-50', desc: 'Paid student sessions' },
-            { label: 'Total Free Slots', value: totalFreeSlotsCount, icon: Clock, color: 'text-blue-600', bg: 'bg-blue-50', desc: 'Your available timings' }
+            { label: 'Regular Classes', value: totalRegular, icon: BookOpen, color: 'text-rose-600', bg: 'bg-rose-50', desc: 'Paid student sessions' }
           ].map((stat, i) => (
             <motion.div 
               key={i} 
