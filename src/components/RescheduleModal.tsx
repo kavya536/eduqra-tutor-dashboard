@@ -9,7 +9,7 @@ interface RescheduleModalProps {
   allBookings: Booking[];
   availability: AvailabilitySlot[];
   onClose: () => void;
-  onConfirm: (id: any, newDate: string, newTime: string) => Promise<void>;
+  onConfirm: (id: any, newDate: string, newTime: string, message?: string) => Promise<void>;
 }
 
 export function RescheduleModal({ booking, allBookings, availability, onClose, onConfirm }: RescheduleModalProps) {
@@ -22,6 +22,7 @@ export function RescheduleModal({ booking, allBookings, availability, onClose, o
 
   const [selectedDate, setSelectedDate] = useState<string>(getLocalDateStr(new Date()));
   const [selectedTime, setSelectedTime] = useState<string>('');
+  const [message, setMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [availableSlots, setAvailableSlots] = useState<string[]>([]);
   const [hasMatchingAvailabilityWindow, setHasMatchingAvailabilityWindow] = useState(false);
@@ -120,7 +121,7 @@ export function RescheduleModal({ booking, allBookings, availability, onClose, o
     if (!selectedDate || !selectedTime) return;
     setIsSubmitting(true);
     try {
-      await onConfirm(booking.id, selectedDate, selectedTime);
+      await onConfirm(booking.id, selectedDate, selectedTime, message);
       onClose();
     } catch (err) {
       console.error(err);
@@ -256,6 +257,17 @@ export function RescheduleModal({ booking, allBookings, availability, onClose, o
                 </div>
               )}
             </div>
+
+            {/* Message to Student */}
+            <div>
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 block">3. Message to Student (Optional)</label>
+              <textarea 
+                className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl p-4 text-sm font-bold outline-none focus:border-primary transition-all min-h-[100px]"
+                placeholder="Briefly explain why the session is being moved..."
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+              />
+            </div>
           </div>
 
           <div className="mt-6 pt-5 border-t border-slate-100 flex gap-3">
@@ -279,7 +291,8 @@ export function RescheduleModal({ booking, allBookings, availability, onClose, o
                 <Loader2 className="animate-spin" size={18} />
               ) : (
                 <>
-                  <Check size={18} /> Confirm New Timing
+                  <Check size={18} />
+                  Confirm Reschedule
                 </>
               )}
             </button>

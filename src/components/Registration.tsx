@@ -94,9 +94,7 @@ export function Registration({
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
-  const [warningCount, setWarningCount] = useState(0);
-  const [recorder, setRecorder] = useState<MediaRecorder | null>(null);
-  const [stream, setStream] = useState<MediaStream | null>(null);
+  const [recordingWarning, setRecordingWarning] = useState<string | null>(null);
   const videoPreviewRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
@@ -106,10 +104,12 @@ export function Registration({
         setWarningCount(nextCount);
         
         if (nextCount <= 3) {
-          alert(`🚨 Warning ${nextCount}/3: Do not leave the recording screen. Your session will be reset if you continue.`);
+          setRecordingWarning(`🚨 Warning ${nextCount}/3: Do not leave the recording screen.`);
+          setTimeout(() => setRecordingWarning(null), 5000);
         } else {
-          alert("🛑 Session Reset: Screen switching limit exceeded. Please re-record and re-submit.");
+          setRecordingWarning("🛑 Session Reset: Screen switching limit exceeded.");
           handleResetRecording();
+          setTimeout(() => setRecordingWarning(null), 5000);
         }
       }
     };
@@ -709,6 +709,31 @@ export function Registration({
         {(isPreviewing || isRecording) && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100001] bg-black flex flex-col">
             <video ref={videoPreviewRef} src={files.demoVideo ? URL.createObjectURL(files.demoVideo) : undefined} autoPlay={!files.demoVideo} muted={!files.demoVideo} controls={!!files.demoVideo} className="w-full h-full object-cover" />
+            {isRecording && (
+              <div className="absolute top-4 right-4 flex items-center gap-2 bg-rose-500 text-white px-3 py-1 rounded-full text-[10px] font-black animate-pulse uppercase tracking-widest z-10 shadow-lg">
+                <div className="w-2 h-2 bg-white rounded-full" />
+                Recording Live
+              </div>
+            )}
+            
+            <AnimatePresence>
+              {recordingWarning && (
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  className="absolute inset-0 z-[20] flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm rounded-[2rem]"
+                >
+                  <div className="bg-white p-6 rounded-[1.5rem] shadow-2xl text-center max-w-xs border-2 border-rose-100">
+                    <AlertCircle className="w-10 h-10 text-rose-500 mx-auto mb-3" />
+                    <p className="text-xs font-black text-slate-800 leading-relaxed uppercase tracking-tight">
+                      {recordingWarning}
+                    </p>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             {isRecording && (
               <div className="absolute top-10 left-1/2 -translate-x-1/2 px-6 py-2 bg-rose-600 rounded-full flex items-center gap-3">
                 <div className="w-3 h-3 bg-white rounded-full animate-pulse" />

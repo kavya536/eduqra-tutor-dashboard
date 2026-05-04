@@ -18,7 +18,7 @@ import { Notes } from './components/Notes';
 import { Booking, BookingStatus, ChatContact, AvailabilitySlot, Review, PageId, TutorNotification, Message } from './types';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './lib/utils';
-import { GraduationCap, LogOut, X, User, Camera, Mic, MicOff, XCircle, Send, MessageSquare, Smile, Clock, Monitor, ShieldCheck, AlertCircle, Check, Play } from 'lucide-react';
+import { GraduationCap, LogOut, X, User, Camera, Mic, MicOff, XCircle, Send, MessageSquare, Smile, Clock, Monitor, ShieldCheck, AlertCircle, Check, Play, CheckCircle } from 'lucide-react';
 import { auth, db, messaging } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { getToken, onMessage } from 'firebase/messaging';
@@ -217,14 +217,14 @@ export default function App() {
         })
       });
       if (response.ok) {
-        alert("Verification link resent! Please check your inbox.");
+        showToast("We send the mail check your inbox");
       } else {
         const errorData = await response.json().catch(() => ({}));
-        alert(`Failed to resend: ${errorData.message || 'Server error'}. Please try again later.`);
+        showToast(`Failed to resend: ${errorData.message || 'Server error'}`, 'error');
       }
     } catch (err) {
       console.error("Resend error:", err);
-      alert(`Connection error: Could not reach the server at http://${window.location.hostname}:5001. Ensure the backend is running.`);
+      showToast("Connection error: Could not reach verification server.", "error");
     }
   };
 
@@ -233,6 +233,12 @@ export default function App() {
     return (saved && saved !== 'null') ? (saved as PageId) : 'dashboard';
   });
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' } | null>(null);
+
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 4000);
+  };
 
   // Persist active page across refreshes
   useEffect(() => {
@@ -989,7 +995,7 @@ export default function App() {
     } else {
       try {
         if (!navigator.mediaDevices || !(navigator.mediaDevices as any).getDisplayMedia) {
-          alert("🔒 Screen sharing is blocked on insecure IP addresses. Please use 'localhost' or a secure HTTPS connection.");
+          showToast("Screen sharing is blocked on insecure connections. Please use HTTPS.", "error");
           return;
         }
         const screenStream = await (navigator.mediaDevices as any).getDisplayMedia({ video: true });
@@ -1405,7 +1411,7 @@ export default function App() {
       }
     } catch (error) {
       console.error("Error updating booking status:", error);
-      alert("Failed to update status. Please check your connection.");
+      showToast("Failed to update status. Check your connection.", "error");
     }
   };
 
@@ -1459,7 +1465,7 @@ export default function App() {
     }
   };
 
-  const handleReschedule = async (id: any, date: string, time: string) => {
+  const handleReschedule = async (id: any, date: string, time: string, tutorMessage?: string) => {
     try {
       const bookingRef = doc(db, 'bookings', id.toString());
       await updateDoc(bookingRef, {
@@ -1500,8 +1506,8 @@ export default function App() {
         await addDoc(collection(db, 'notifications'), {
           studentEmail: booking.studentEmail,
           type: 'booking',
-          title: 'Session Rescheduled ðŸ“…',
-          message: `Your ${booking.subject} session with ${profile?.name || 'your tutor'} has been moved to ${date} at ${time}.${booking.amount ? ` (Paid: â‚¹${booking.amount})` : ''}`,
+          title: 'Session Rescheduled 📅',
+          message: `Your ${booking.subject} session with ${profile?.name || 'your tutor'} has been moved to ${date} at ${time}.${tutorMessage ? ` Message from tutor: "${tutorMessage}"` : ''}${booking.amount ? ` (Paid: ₹${booking.amount})` : ''}`,
           time: new Date().toISOString(),
           read: false,
           link: 'my-bookings'
@@ -1509,7 +1515,7 @@ export default function App() {
       }
     } catch (e) {
       console.error("Reschedule error:", e);
-      alert("Failed to reschedule session.");
+      showToast("Failed to reschedule session.", "error");
     }
   };
 
@@ -2373,6 +2379,23 @@ export default function App() {
               </div>
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+      {/* Global Toast System */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: 50, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9, y: 20 }}
+            className={cn(
+              "fixed bottom-10 left-1/2 -translate-x-1/2 z-[9999] px-6 py-3 rounded-full shadow-2xl font-black text-[10px] uppercase tracking-widest flex items-center gap-3 border transition-all",
+              toast.type === 'error' ? "bg-rose-500 text-white border-rose-400" : "bg-[#004AAD] text-white border-blue-400"
+            )}
+          >
+            {toast.type === 'error' ? <AlertCircle size={16} /> : <CheckCircle size={16} />}
+            {toast.message}
+          </motion.div>
         )}
       </AnimatePresence>
     </>

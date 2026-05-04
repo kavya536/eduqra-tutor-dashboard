@@ -33,6 +33,7 @@ export function Bookings({ bookings, onStatusChange, onRescheduleStart, onResche
   const [searchTerm, setSearchTerm] = useState('');
   const [rescheduleModalOpen, setRescheduleModalOpen] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (initialRescheduleId) {
@@ -68,7 +69,8 @@ export function Bookings({ bookings, onStatusChange, onRescheduleStart, onResche
 
   const handleWhatsApp = (booking: Booking) => {
     if (!booking.studentPhone) {
-      alert("No phone number available for this student.");
+      setError("No phone number available for this student.");
+      setTimeout(() => setError(null), 4000);
       return;
     }
     const name = booking.name || 'Student';
@@ -326,6 +328,19 @@ export function Bookings({ bookings, onStatusChange, onRescheduleStart, onResche
             onClose={handleRescheduleClose}
             onConfirm={onReschedule}
           />
+        )}
+      </AnimatePresence>
+      {/* Inline Toast Notification */}
+      <AnimatePresence>
+        {error && (
+          <motion.div 
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 50 }}
+            className="fixed bottom-10 left-1/2 -translate-x-1/2 bg-rose-500 text-white px-6 py-3 rounded-full shadow-2xl font-black text-[10px] uppercase tracking-widest z-[100] flex items-center gap-3 border border-rose-400"
+          >
+            <AlertCircle size={16} /> {error}
+          </motion.div>
         )}
       </AnimatePresence>
     </div>

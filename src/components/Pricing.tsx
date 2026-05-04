@@ -23,6 +23,86 @@ interface PricingProps {
 
 const PRIMARY_BLUE = "#0047AB";
 
+// Centralized Subject Master System
+const SUBJECT_MASTER: Record<string, { name: string, aliases: string[] }> = {
+  'mathematics': {
+    name: 'Mathematics',
+    aliases: ['maths', 'math', 'mathemathics', 'calculus', 'algebra', 'maths 1a', 'maths 1b', 'maths 2a', 'maths 2b', 'discrete mathematics', 'mathematics (b.tech/b.sc)']
+  },
+  'physics': {
+    name: 'Physics',
+    aliases: ['phisics', 'phys']
+  },
+  'chemistry': {
+    name: 'Chemistry',
+    aliases: ['chemestry', 'chem']
+  },
+  'biology': {
+    name: 'Biology',
+    aliases: ['bio', 'biological sciences']
+  },
+  'computer_science': {
+    name: 'Computer Science',
+    aliases: ['cs', 'computer', 'programming', 'it', 'java', 'python', 'c programming', 'html/css', 'javascript', 'react.js', 'node.js', 'sql/mysql', 'postgresql', 'artificial intelligence', 'machine learning']
+  },
+  'english': {
+    name: 'English',
+    aliases: ['english language', 'literature']
+  },
+  'social_studies': {
+    name: 'Social Studies',
+    aliases: ['sst', 'social science', 'history', 'geography', 'civics']
+  },
+  'hindi': {
+    name: 'Hindi',
+    aliases: []
+  },
+  'sanskrit': {
+    name: 'Sanskrit',
+    aliases: []
+  },
+  'telugu': {
+    name: 'Telugu',
+    aliases: []
+  },
+  'business_studies': {
+    name: 'Business Studies',
+    aliases: ['business', 'bst']
+  },
+  'accountancy': {
+    name: 'Accountancy',
+    aliases: ['accounts', 'accounting']
+  },
+  'economics': {
+    name: 'Economics',
+    aliases: ['eco']
+  },
+  'science': {
+    name: 'Science',
+    aliases: ['general science']
+  },
+  'evs': {
+    name: 'EVS',
+    aliases: ['environmental science']
+  }
+};
+
+const normalizeSubject = (input: string): string => {
+  if (!input) return '';
+  const normalized = input.trim().toLowerCase();
+  if (SUBJECT_MASTER[normalized]) return normalized;
+  for (const [id, data] of Object.entries(SUBJECT_MASTER)) {
+    if (data.name.toLowerCase() === normalized) return id;
+    if (data.aliases.some(alias => alias.toLowerCase() === normalized)) return id;
+  }
+  return normalized;
+};
+
+const getSubjectName = (id: string): string => {
+  if (!id || typeof id !== 'string') return 'General Subject';
+  return SUBJECT_MASTER[id]?.name || id.charAt(0).toUpperCase() + id.slice(1);
+};
+
 const SUBJECT_LISTS: Record<string, string[]> = {
   "Secondary (Upto 10th)": [
     "Telugu", "English", "Mathematics", "Science", "EVS", "Chemistry", "Biology", "Social Studies", "Hindi", "All Subjects (Upto 10th)"
@@ -90,6 +170,7 @@ export function Pricing({ experience, tutorId, targetClasses }: PricingProps) {
     setEntries(entries.map(e => {
       if (e.id === id) {
         const updated = { ...e, ...updates };
+        if (updates.subject) updated.subject = normalizeSubject(updates.subject);
         if (updated.type === 'hourly' || updated.type === 'monthly') {
           if (updates.hourlyRate !== undefined) {
              updated.baseAmount = Number(updates.hourlyRate) * 30;
@@ -139,12 +220,13 @@ export function Pricing({ experience, tutorId, targetClasses }: PricingProps) {
 
   const handleAddCustom = () => {
     if (!customSubject.trim()) return;
-    const newSub = customSubject.trim();
-    if (!existingCustoms.includes(newSub)) {
-      setExistingCustoms([...existingCustoms, newSub]);
+    const normalized = normalizeSubject(customSubject.trim());
+    const display = getSubjectName(normalized);
+    if (!existingCustoms.includes(display)) {
+      setExistingCustoms([...existingCustoms, display]);
     }
     if (isAddingCustom) {
-      updateEntry(isAddingCustom, { subject: newSub });
+      updateEntry(isAddingCustom, { subject: normalized });
     }
     setCustomSubject('');
     setIsAddingCustom(null);
@@ -236,12 +318,12 @@ export function Pricing({ experience, tutorId, targetClasses }: PricingProps) {
                       <option value="" disabled>Select Subject...</option>
                       {allowedCategories.map(cat => (
                         <optgroup key={cat} label={cat} className="text-[#0047AB] font-black bg-white">
-                          {SUBJECT_LISTS[cat].map(s => <option key={s} value={s} className="text-slate-700">{s}</option>)}
+                          {SUBJECT_LISTS[cat].map(s => <option key={s} value={normalizeSubject(s)} className="text-slate-700">{s}</option>)}
                         </optgroup>
                       ))}
                       {existingCustoms.length > 0 && (
                         <optgroup label="My Custom Subjects" className="text-emerald-600 font-black bg-white">
-                          {existingCustoms.map(s => <option key={s} value={s} className="text-slate-700">{s}</option>)}
+                          {existingCustoms.map(s => <option key={s} value={normalizeSubject(s)} className="text-slate-700">{s}</option>)}
                         </optgroup>
                       )}
                       <option value="ADD_CUSTOM" className="text-[#0047AB] font-bold italic">+ Add New Subject...</option>
