@@ -195,16 +195,24 @@ export function Dashboard({ bookings, onPageChange, onSearch, onRescheduleStart,
 
                   {(() => {
                     const isJoinable = () => {
-                      if (session.status === 'live') return true;
-                      if (session.status !== 'confirmed') return false;
                       try {
                         const now = new Date();
                         const sessionDate = new Date(`${session.date} ${session.time}`);
                         const diffMins = (sessionDate.getTime() - now.getTime()) / (1000 * 60);
                         
-                        // Rule: Joinable from 10 mins before start. 
-                        // Once it's past start time, it stays joinable until it's marked as 'completed' or manually ended.
-                        // However, we only show it as "Join Now" before it's live.
+                        // Parse duration (e.g. "1" or "1.5")
+                        const durationHrs = parseFloat(session.duration || '1');
+                        const durationMins = durationHrs * 60;
+                        const gracePeriodMins = 60; // 1 hour grace after scheduled end
+                        
+                        const isPastSafetyWindow = now.getTime() > (sessionDate.getTime() + (durationMins + gracePeriodMins) * 60 * 1000);
+
+                        if (isPastSafetyWindow) return false; // Hide if way past end time
+                        
+                        if (session.status === 'live') return true;
+                        if (session.status !== 'confirmed') return false;
+                        
+                        // Joinable from 10 mins before start. 
                         return diffMins <= 10; 
                       } catch (e) {
                         return false;
