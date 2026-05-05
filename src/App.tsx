@@ -1270,24 +1270,27 @@ export default function App() {
         durationMins = Math.floor((new Date().getTime() - sessionStartTime.getTime()) / 60000);
       }
 
-      // Check if student was present and stayed for at least 12 mins
+      // Attendance Status Logic based on who joined
       let studentValid = false;
       if (bookingData.isGroup && bookingData.participantData) {
-        studentValid = Object.values(bookingData.participantData).some((p: any) => {
-          if (!p.joinTime) return false;
-          const stay = Math.floor((new Date().getTime() - p.joinTime.toDate().getTime()) / 60000);
-          return stay >= 10;
-        });
+        studentValid = Object.values(bookingData.participantData).some((p: any) => p.joinTime != null);
       } else {
-        const sJoin = bookingData.studentJoinTime?.toDate();
-        const sStay = sJoin ? Math.floor((new Date().getTime() - sJoin.getTime()) / 60000) : 0;
-        studentValid = bookingData.studentPresent && sStay >= 10;
+        studentValid = bookingData.studentPresent;
       }
 
-      // Validity Criteria: 10+ mins total, 10+ mins talking, student present 10+ mins
-      const isValidClass = durationMins >= 10 && isVoiceSuccess && studentValid;
+      const tutorValid = true; // Tutor is explicitly ending the session
 
-      // Only ask for topic if the class was valid
+      let attendance_status = 'not_conducted';
+      if (tutorValid && studentValid) {
+        attendance_status = 'attended';
+      } else if (tutorValid || studentValid) {
+        attendance_status = 'not_attended';
+      }
+
+      // Only ask for topic if both tutor and student were in the room
+      const isValidClass = attendance_status === 'attended';
+
+      // Only ask for topic if the class was attended
       if (isValidClass && !showTopicModal && !sessionTopic) {
         setShowTopicModal(true);
         return;
@@ -1308,7 +1311,7 @@ export default function App() {
         durationConducted: durationMins,
         talkingTime: talkingTimeRef.current,
         completedAt: serverTimestamp(),
-        attendance_status: isValidClass ? 'attended' : 'not_attended'
+        attendance_status: attendance_status
       };
 
       // ðŸ›‘ WebRTC & Listener CLEANUP ðŸ›‘
@@ -2313,7 +2316,12 @@ export default function App() {
                         className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4 text-slate-800 font-bold focus:ring-2 ring-primary/20 outline-none transition-all"
                         value={sessionTopic}
                         onChange={(e) => setSessionTopic(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && endSession()}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            if (!sessionTopic.trim()) return;
+                            finalizeSession('complete');
+                          }
+                        }}
                       />
                     </div>
                     
@@ -2366,8 +2374,14 @@ export default function App() {
                     </AnimatePresence>
 
                     <button 
-                      onClick={endSession}
-                      className="w-full bg-primary text-white font-black py-5 rounded-2xl shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all uppercase text-xs tracking-widest"
+                      onClick={() => {
+                        if (!sessionTopic.trim()) return;
+                        finalizeSession('complete');
+                      }}
+                      className={cn(
+                        "w-full text-white font-black py-5 rounded-2xl shadow-xl transition-all uppercase text-xs tracking-widest",
+                        sessionTopic.trim() ? "bg-primary hover:scale-[1.02] active:scale-95 shadow-primary/20" : "bg-slate-300 cursor-not-allowed"
+                      )}
                     >
                       Complete Session & Save
                     </button>

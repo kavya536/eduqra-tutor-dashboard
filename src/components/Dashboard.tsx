@@ -200,10 +200,9 @@ export function Dashboard({ bookings, onPageChange, onSearch, onRescheduleStart,
                         const sessionDate = new Date(`${session.date} ${session.time}`);
                         const diffMins = (sessionDate.getTime() - now.getTime()) / (1000 * 60);
                         
-                        // Parse duration (e.g. "1" or "1.5")
                         const durationHrs = parseFloat(session.duration || '1');
                         const durationMins = durationHrs * 60;
-                        const gracePeriodMins = 60; // 1 hour grace after scheduled end
+                        const gracePeriodMins = 0; // Strictly active per end time for rejoin only
                         
                         const isPastSafetyWindow = now.getTime() > (sessionDate.getTime() + (durationMins + gracePeriodMins) * 60 * 1000);
 
