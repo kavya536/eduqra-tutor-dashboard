@@ -1149,18 +1149,41 @@ export default function App() {
         type: 'audio',
         enabled: isMicOn
       });
-    }
-  }, [isMicOn]);
-
-  useEffect(() => {
-    if (socketRef.current && sessionStatus === 'live' && activeMeetingId) {
       socketRef.current.emit('toggle-media', {
         roomId: activeMeetingId,
-        type: 'video',
+        type: 'camera',
         enabled: isCamOn
       });
     }
-  }, [isCamOn]);
+  }, [isMicOn, isCamOn, sessionStatus, activeMeetingId]);
+
+  // 🛑 AUTO-CLEANUP WHEN NAVIGATING AWAY 🛑
+  useEffect(() => {
+    // If we were in a live class and moved to another page (not just minimized)
+    if (currentPage !== 'live-class' && activeMeetingId && sessionStatus !== 'disconnected') {
+      console.log("🛑 Navigated away from Live Class - Cleaning up local resources...");
+      
+      // Stop media tracks
+      if (localStreamRef.current) {
+        localStreamRef.current.getTracks().forEach(t => t.stop());
+        localStreamRef.current = null;
+      }
+      
+      // Close WebRTC peers
+      peersRef.current.forEach(pc => pc.close());
+      peersRef.current.clear();
+      
+      // Disconnect socket
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
+      
+      setRemoteStreams([]);
+      // We keep activeMeetingId so we can rejoin, but status is reset
+      setSessionStatus('disconnected'); 
+    }
+  }, [currentPage]);
 
   const createPeerConnection = (socketId: string, roomId: string) => {
     const pc = new RTCPeerConnection({ 

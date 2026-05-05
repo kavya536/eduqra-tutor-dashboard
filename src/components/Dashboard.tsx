@@ -193,12 +193,14 @@ export function Dashboard({ bookings, onPageChange, onSearch, onRescheduleStart,
 
                   {(() => {
                     const isJoinable = () => {
-                      if (session.status !== 'confirmed') return false;
+                      if (session.status !== 'confirmed' && session.status !== 'live') return false;
                       try {
                         const now = new Date();
                         const sessionDate = new Date(`${session.date} ${session.time}`);
                         const diffMins = (sessionDate.getTime() - now.getTime()) / (1000 * 60);
-                        return diffMins <= 10 && diffMins >= -60; // 10 mins before to 60 mins after
+                        // If it's already live, it's always joinable until ended
+                        if (session.status === 'live') return true;
+                        return diffMins <= 10 && diffMins >= -60; 
                       } catch (e) {
                         return false;
                       }
@@ -235,9 +237,12 @@ export function Dashboard({ bookings, onPageChange, onSearch, onRescheduleStart,
                       return (
                         <button 
                           onClick={() => onJoinSession(session.id.toString())}
-                          className="flex-1 sm:flex-none bg-primary text-white text-[10px] md:text-[11px] font-black uppercase tracking-widest px-5 md:px-7 py-2.5 md:py-3 rounded-2xl hover:scale-105 transition-all active:scale-95 flex items-center justify-center gap-2 shadow-lg shadow-primary/20 animate-pulse"
+                          className={cn(
+                            "flex-1 sm:flex-none text-white text-[10px] md:text-[11px] font-black uppercase tracking-widest px-5 md:px-7 py-2.5 md:py-3 rounded-2xl hover:scale-105 transition-all active:scale-95 flex items-center justify-center gap-2 shadow-lg animate-pulse",
+                            session.status === 'live' ? "bg-emerald-500 shadow-emerald-500/20" : "bg-primary shadow-primary/20"
+                          )}
                         >
-                          <Video className="w-4 h-4" /> Join Class
+                          <Video className="w-4 h-4" /> {session.status === 'live' ? 'Rejoin Class' : 'Join Class'}
                         </button>
                       );
                     } else if (session.status === 'confirmed') {
