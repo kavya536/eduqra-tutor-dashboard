@@ -1078,11 +1078,13 @@ export default function App() {
 
     // 5. Socket.IO Signaling Setup
     const hostname = window.location.hostname;
-    socketRef.current = io(`http://${hostname}:5001`);
+    const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
+    socketRef.current = io(`${protocol}//${hostname}:5001`);
     socketRef.current.emit('join-room', { 
       roomId: bookingId, 
       userId: profile.id, 
-      userName: profile.name 
+      userName: profile.name,
+      role: 'tutor' 
     });
 
     socketRef.current.on('all-users', (users: any[]) => {
@@ -1114,12 +1116,16 @@ export default function App() {
       }
     });
 
-    socketRef.current.on('user-joined', ({ socketId, userName }: any) => {
-      console.log("👤 Student Joined:", userName);
+    socketRef.current.on('user-joined', ({ socketId, userName, role }: any) => {
+      console.log(`👤 ${role === 'tutor' ? 'Tutor' : 'Student'} Joined:`, userName);
       setSessionStatus('live');
     });
 
-    socketRef.current.on('user-left', (socketId: string) => {
+    socketRef.current.on('user-media-toggled', ({ socketId, type, enabled }: any) => {
+      console.log(`🎥 Media Toggled by ${socketId}: ${type} is now ${enabled}`);
+    });
+
+    socketRef.current.on('user-left', ({ socketId }: any) => {
       const pc = peersRef.current.get(socketId);
       if (pc) pc.close();
       peersRef.current.delete(socketId);
@@ -1135,8 +1141,34 @@ export default function App() {
     (window as any)._sessionUnsub = () => { unsub(); msgUnsub(); };
   };
 
+  // Sync Media Status to Room (Dynamic UI)
+  useEffect(() => {
+    if (socketRef.current && sessionStatus === 'live' && activeMeetingId) {
+      socketRef.current.emit('toggle-media', {
+        roomId: activeMeetingId,
+        type: 'audio',
+        enabled: isMicOn
+      });
+    }
+  }, [isMicOn]);
+
+  useEffect(() => {
+    if (socketRef.current && sessionStatus === 'live' && activeMeetingId) {
+      socketRef.current.emit('toggle-media', {
+        roomId: activeMeetingId,
+        type: 'video',
+        enabled: isCamOn
+      });
+    }
+  }, [isCamOn]);
+
   const createPeerConnection = (socketId: string, roomId: string) => {
-    const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+    const pc = new RTCPeerConnection({ 
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+      ] 
+    });
     pc.onicecandidate = (e) => {
       if (e.candidate) {
         socketRef.current.emit('signal', { to: socketId, signal: { candidate: e.candidate } });
