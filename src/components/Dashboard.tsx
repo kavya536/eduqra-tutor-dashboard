@@ -156,8 +156,10 @@ export function Dashboard({ bookings, onPageChange, onSearch, onRescheduleStart,
                     <div className="flex items-center gap-3 mb-1.5">
                       <h4 className="font-extrabold text-base text-on-surface truncate group-hover:text-primary transition-colors">{session.name}</h4>
                       <span className={cn(
-                        "px-2.5 py-1 rounded-full text-[8px] md:text-[9px] font-black uppercase tracking-widest border",
-                        session.status === 'pending' ? "bg-amber-50 text-amber-600 border-amber-200" : "bg-primary/5 text-primary border-primary/10"
+                        "px-2.5 py-1 rounded-full text-[8px] md:text-[9px] font-black uppercase tracking-widest border shadow-sm",
+                        session.status === 'pending' ? "bg-amber-50 text-amber-600 border-amber-200" : 
+                        session.status === 'rescheduled' ? "bg-blue-50 text-blue-600 border-blue-200" :
+                        "bg-emerald-50 text-emerald-600 border-emerald-200"
                       )}>
                         {session.status}
                       </span>
@@ -193,14 +195,17 @@ export function Dashboard({ bookings, onPageChange, onSearch, onRescheduleStart,
 
                   {(() => {
                     const isJoinable = () => {
-                      if (session.status !== 'confirmed' && session.status !== 'live') return false;
+                      if (session.status === 'live') return true;
+                      if (session.status !== 'confirmed') return false;
                       try {
                         const now = new Date();
                         const sessionDate = new Date(`${session.date} ${session.time}`);
                         const diffMins = (sessionDate.getTime() - now.getTime()) / (1000 * 60);
-                        // If it's already live, it's always joinable until ended
-                        if (session.status === 'live') return true;
-                        return diffMins <= 10 && diffMins >= -60; 
+                        
+                        // Rule: Joinable from 10 mins before start. 
+                        // Once it's past start time, it stays joinable until it's marked as 'completed' or manually ended.
+                        // However, we only show it as "Join Now" before it's live.
+                        return diffMins <= 10; 
                       } catch (e) {
                         return false;
                       }

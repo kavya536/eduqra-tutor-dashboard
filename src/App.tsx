@@ -199,7 +199,7 @@ export default function App() {
     if (!user) return;
     setIsReapplying(true);
     setView('register');
-    console.log("🔄 Redirecting rejected tutor to registration for correction.");
+    console.log("ðŸ”„ Redirecting rejected tutor to registration for correction.");
   };
 
   const handleResendVerification = async () => {
@@ -510,7 +510,7 @@ export default function App() {
             const profileAvatar = profileData.avatar || profileData.profileImage || '';
             
             if (profileName && (profileName !== contact.name || profileAvatar !== contact.avatar)) {
-              console.log(`ðŸ› ï¸ Healing student identity for ${email} from profile: ${profileName}`);
+              console.log(`Ã°Å¸â€ºÂ Ã¯Â¸Â Healing student identity for ${email} from profile: ${profileName}`);
               const chatRef = doc(db, 'whatsapp', contact.id);
               await updateDoc(chatRef, { 
                 studentName: profileName,
@@ -537,7 +537,7 @@ export default function App() {
                }
             }
             if (bestName !== 'Student' && bestName !== contact.name) {
-              console.log(`ðŸ› ï¸ Healing student identity for ${email} from booking: ${bestName}`);
+              console.log(`Ã°Å¸â€ºÂ Ã¯Â¸Â Healing student identity for ${email} from booking: ${bestName}`);
               const chatRef = doc(db, 'whatsapp', contact.id);
               await updateDoc(chatRef, { studentName: bestName });
             }
@@ -685,7 +685,7 @@ export default function App() {
 
     // Always keep chat document metadata in sync
     await setDoc(chatRef, {
-      lastMessage: payload.text || (payload.type === 'poll' ? 'ðŸ“Š Poll' : 'ðŸ“Ž Attachment'),
+      lastMessage: payload.text || (payload.type === 'poll' ? 'Ã°Å¸â€œÅ  Poll' : 'Ã°Å¸â€œÅ½ Attachment'),
       lastMessageTime: now.toISOString(),
       timestamp: serverTimestamp(),
       studentUnreadCount: payload.messageId ? increment(0) : increment(1),
@@ -725,7 +725,7 @@ export default function App() {
 
     if (everyone) {
       await updateDoc(msgRef, {
-        text: 'ðŸš« This message was deleted',
+        text: 'Ã°Å¸Å¡Â« This message was deleted',
         deletedForEveryone: true
       });
     } else {
@@ -852,7 +852,7 @@ export default function App() {
 
       // SECURITY: Push notifications require a secure context (HTTPS or localhost)
       if (!window.isSecureContext) {
-        console.warn('⚠️ [SECURITY] Push notifications are disabled on insecure origins (HTTP IP). Use localhost or HTTPS.');
+        console.warn('âš ï¸ [SECURITY] Push notifications are disabled on insecure origins (HTTP IP). Use localhost or HTTPS.');
         return;
       }
 
@@ -1117,12 +1117,12 @@ export default function App() {
     });
 
     socketRef.current.on('user-joined', ({ socketId, userName, role }: any) => {
-      console.log(`👤 ${role === 'tutor' ? 'Tutor' : 'Student'} Joined:`, userName);
+      console.log(`ðŸ‘¤ ${role === 'tutor' ? 'Tutor' : 'Student'} Joined:`, userName);
       setSessionStatus('live');
     });
 
     socketRef.current.on('user-media-toggled', ({ socketId, type, enabled }: any) => {
-      console.log(`🎥 Media Toggled by ${socketId}: ${type} is now ${enabled}`);
+      console.log(`ðŸŽ¥ Media Toggled by ${socketId}: ${type} is now ${enabled}`);
     });
 
     socketRef.current.on('user-left', ({ socketId }: any) => {
@@ -1157,11 +1157,11 @@ export default function App() {
     }
   }, [isMicOn, isCamOn, sessionStatus, activeMeetingId]);
 
-  // 🛑 AUTO-CLEANUP WHEN NAVIGATING AWAY 🛑
+  // ðŸ›‘ AUTO-CLEANUP WHEN NAVIGATING AWAY ðŸ›‘
   useEffect(() => {
     // If we were in a live class and moved to another page (not just minimized)
     if (currentPage !== 'live-class' && activeMeetingId && sessionStatus !== 'disconnected') {
-      console.log("🛑 Navigated away from Live Class - Cleaning up local resources...");
+      console.log("ðŸ›‘ Navigated away from Live Class - Cleaning up local resources...");
       
       // Stop media tracks
       if (localStreamRef.current) {
@@ -1311,7 +1311,7 @@ export default function App() {
         attendance_status: isValidClass ? 'attended' : 'not_attended'
       };
 
-      // 🛑 WebRTC & Listener CLEANUP 🛑
+      // ðŸ›‘ WebRTC & Listener CLEANUP ðŸ›‘
       if ((window as any)._sessionUnsub) {
         (window as any)._sessionUnsub();
         delete (window as any)._sessionUnsub;
@@ -1453,9 +1453,9 @@ export default function App() {
             await addDoc(collection(db, 'notifications'), {
               studentEmail: booking.studentEmail,
               type: 'booking',
-              title: status === 'confirmed' ? 'Session Confirmed! ✅' : 'Session Cancelled ❌',
+              title: status === 'confirmed' ? 'Session Confirmed! âœ…' : 'Session Cancelled âŒ',
               message: status === 'confirmed' 
-                ? `${profile?.name || 'Your tutor'} confirmed your ${booking.subject} session for ${booking.date} at ${booking.time}.${booking.amount ? ` (Amount: ₹${booking.amount})` : ''}`
+                ? `${profile?.name || 'Your tutor'} confirmed your ${booking.subject} session for ${booking.date} at ${booking.time}.${booking.amount ? ` (Amount: â‚¹${booking.amount})` : ''}`
                 : `${profile?.name || 'Your tutor'} cancelled your ${booking.subject} session. Contact support for details.`,
               time: new Date().toISOString(),
               read: false,
@@ -1556,13 +1556,13 @@ export default function App() {
         description: `You've successfully rescheduled the session. Student has been notified.`,
       });
 
-      // Notify Student of Reschedule
-      if (booking && booking.studentEmail) {
+      // Notify Student of Reschedule (FIXED: Use userId)
+      if (booking && booking.studentId) {
         await addDoc(collection(db, 'notifications'), {
-          studentEmail: booking.studentEmail,
+          userId: booking.studentId,
           type: 'booking',
-          title: 'Session Rescheduled 📅',
-          message: `Your ${booking.subject} session with ${profile?.name || 'your tutor'} has been moved to ${date} at ${time}.${tutorMessage ? ` Message from tutor: "${tutorMessage}"` : ''}${booking.amount ? ` (Paid: ₹${booking.amount})` : ''}`,
+          title: 'Session Rescheduled',
+          message: `Your ${booking.subject} session with ${profile?.name || 'your tutor'} has been moved to ${date} at ${time}.`,
           time: new Date().toISOString(),
           read: false,
           link: 'my-bookings'
@@ -1662,7 +1662,7 @@ export default function App() {
                 isPaid: studentBookings.some(b => b.type === 'paid' && b.paidAt),
                 online: false,
                 unread: 0,
-                lastMessage: '👋 Start a conversation...',
+                lastMessage: 'ðŸ‘‹ Start a conversation...',
                 time: 'Now',
                 messages: []
               };
@@ -2190,7 +2190,7 @@ export default function App() {
                             <Smile size={20} />
                           </button>
                           <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-4 bg-[#1A1A1E]/90 backdrop-blur-xl border border-white/10 p-2 rounded-2xl hidden group-hover:flex gap-2 shadow-2xl">
-                             {['ðŸ‘', 'â¤ï¸', 'ðŸ‘', 'ðŸ’¡', 'ðŸ”¥', 'ðŸŽ‰'].map(emoji => (
+                             {['Ã°Å¸â€˜Â', 'Ã¢ÂÂ¤Ã¯Â¸Â', 'Ã°Å¸â€˜Â', 'Ã°Å¸â€™Â¡', 'Ã°Å¸â€Â¥', 'Ã°Å¸Å½â€°'].map(emoji => (
                                <button 
                                  key={emoji}
                                  onClick={() => {
@@ -2297,7 +2297,7 @@ export default function App() {
                 >
                   <div className="text-center mb-8">
                     <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <span className="text-primary text-2xl font-bold">ðŸ“–</span>
+                      <span className="text-primary text-2xl font-bold">Ã°Å¸â€œâ€“</span>
                     </div>
                     <h3 className="text-2xl font-serif font-bold italic text-slate-800">Class Conducted</h3>
                     <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-2">What did you cover today?</p>
