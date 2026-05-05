@@ -160,14 +160,14 @@ export function Bookings({ bookings, onStatusChange, onRescheduleStart, onResche
                       </span>
                     )}
                   </div>
-                    {(booking.status === 'completed' || booking.attendance_status) && (
+                    {(booking.status === 'completed' || booking.attendance_status) && booking.attendance_status && (
                         <span className={cn(
                           "text-[8px] md:text-[9px] font-bold px-1.5 py-0.5 rounded-md inline-block uppercase tracking-widest",
                           booking.attendance_status === 'attended' || booking.attendance_status === 'pending'
-                            ? "bg-blue-50 text-blue-600"
-                            : "bg-red-50 text-red-600"
+                            ? "bg-emerald-50 text-emerald-600"
+                            : "bg-rose-50 text-rose-600"
                         )}>
-                          {booking.attendance_status === 'not_attended' ? 'Not Attended' : 'Attended'}
+                          {booking.attendance_status === 'not_attended' ? 'Not Attended' : booking.attendance_status === 'not_conducted' ? 'Not Conducted' : 'Attended'}
                         </span>
                       )}
                     {booking.topic && (
