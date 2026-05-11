@@ -1,10 +1,9 @@
 import { cn } from '../lib/utils';
-import { auth, db } from '../firebase';
-import { doc, updateDoc, onSnapshot } from 'firebase/firestore';
-import { updatePassword, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
 import { useEffect, useState } from 'react';
 import { Bell, Shield, Eye, EyeOff, Lock, Save, Loader2, RefreshCw, Check } from 'lucide-react';
 import { motion } from 'motion/react';
+import { useAuthStore } from '../store/useAuthStore';
+import { authService } from '../services/authService';
 
 export function Settings() {
   const [status, setStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
@@ -20,41 +19,36 @@ export function Settings() {
     confirm: ''
   });
 
+  const { user, profile } = useAuthStore();
+
   const [prefState, setPrefState] = useState({
-    reminders: true,
-    messages: true,
-    updates: true,
-    push: false
+    reminders: profile?.notificationPreferences?.reminders ?? true,
+    messages: profile?.notificationPreferences?.messages ?? true,
+    updates: profile?.notificationPreferences?.updates ?? true,
+    push: profile?.notificationPreferences?.push ?? false
   });
 
   useEffect(() => {
-    if (!auth.currentUser) return;
-    const unsub = onSnapshot(doc(db, 'users', auth.currentUser.uid), (snap) => {
-      if (snap.exists()) {
-        const data = snap.data();
-        if (data.notificationPreferences) {
-          setPrefState({
-            reminders: data.notificationPreferences.reminders ?? true,
-            messages: data.notificationPreferences.messages ?? true,
-            updates: data.notificationPreferences.updates ?? true,
-            push: data.notificationPreferences.push ?? false
-          });
-        }
-      }
-    });
-    return () => unsub();
-  }, []);
+    if (profile?.notificationPreferences) {
+      setPrefState({
+        reminders: profile.notificationPreferences.reminders ?? true,
+        messages: profile.notificationPreferences.messages ?? true,
+        updates: profile.notificationPreferences.updates ?? true,
+        push: profile.notificationPreferences.push ?? false
+      });
+    }
+  }, [profile]);
 
   const handleTogglePref = (id: keyof typeof prefState) => {
     setPrefState(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
   const handleSavePrefs = async () => {
-    if (!auth.currentUser) return;
+    if (!user) return;
     setStatus('saving');
     
     try {
-      await updateDoc(doc(db, 'users', auth.currentUser.uid), {
+      await authService.updateProfile(user.uid, {
         notificationPreferences: prefState
       });
       setStatus('success');
@@ -67,7 +61,7 @@ export function Settings() {
   };
 
   const handleUpdatePassword = async () => {
-    if (!auth.currentUser || !auth.currentUser.email) return;
+    if (!user || !user.email) return;
     
     if (!passwords.current || !passwords.new || !passwords.confirm) {
       setErrorMessage("All fields are required");
@@ -91,12 +85,7 @@ export function Settings() {
     setErrorMessage('');
 
     try {
-      // Re-authenticate first (standard Firebase security requirement for sensitive operations)
-      const credential = EmailAuthProvider.credential(auth.currentUser.email, passwords.current);
-      await reauthenticateWithCredential(auth.currentUser, credential);
-      
-      // Now update
-      await updatePassword(auth.currentUser, passwords.new);
+      await authService.updatePasswordWithReauth(user.email, passwords.current, passwords.new);
       setPwdStatus('success');
       setPasswords({ current: '', new: '', confirm: '' });
       setTimeout(() => setPwdStatus('idle'), 3000);

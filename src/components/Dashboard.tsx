@@ -5,28 +5,35 @@ import { cn } from '../lib/utils';
 import { useState } from 'react';
 import { RescheduleModal } from './RescheduleModal';
 
-interface DashboardProps {
-  bookings: Booking[];
-  onPageChange: (page: PageId) => void;
-  onSearch: (term: string) => void;
-  onRescheduleStart: (id: number) => void;
-  onReschedule?: (id: any, date: string, time: string) => Promise<void>;
-  tutorAvailability?: AvailabilitySlot[];
-  onJoinSession: (id: string) => void;
-  user: any;
-}
+import { useAuthStore } from '../store/useAuthStore';
+import { useBookingStore } from '../store/useBookingStore';
+import { useUIStore } from '../store/useUIStore';
+import { useLiveClassStore } from '../store/useLiveClassStore';
+import { useChatStore } from '../store/useChatStore';
+import { bookingService } from '../services/bookingService';
 
-export function Dashboard({ bookings, onPageChange, onSearch, onRescheduleStart, onReschedule, tutorAvailability = [], onJoinSession, user }: DashboardProps) {
+import { useBookingListener } from '../hooks/useBookingListener';
+import { useChatListener } from '../hooks/useChatListener';
+
+export function Dashboard() {
+  // Activate isolated listeners for dashboard content
+  useBookingListener();
+  useChatListener();
+
+  const profile = useAuthStore(state => state.profile);
+  const user = useAuthStore(state => state.user);
+  const bookings = useBookingStore(state => state.bookings);
+  const manualSlots = useBookingStore(state => state.manualSlots);
+  const setOpenRescheduleFor = useBookingStore(state => state.setOpenRescheduleFor);
+  const setCurrentPage = useUIStore(state => state.setCurrentPage);
+  const setSearchTerm = useUIStore(state => state.setSearchTerm);
+  const setActiveMeetingId = useLiveClassStore(state => state.setActiveMeetingId);
   const [rescheduleModalOpen, setRescheduleModalOpen] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
 
   const handleDashboardReschedule = (session: Booking) => {
-    if (!onReschedule) {
-      onRescheduleStart(Number(session.id));
-      return;
-    }
-    setSelectedBooking(session);
-    setRescheduleModalOpen(true);
+    setOpenRescheduleFor(Number(session.id));
+    setCurrentPage('bookings');
   };
 
   const stats = [
@@ -57,7 +64,7 @@ export function Dashboard({ bookings, onPageChange, onSearch, onRescheduleStart,
       >
         <div>
           <h1 className="page-title mb-1">Dashboard</h1>
-          <p className="font-medium secondary-text">Welcome back, {user?.displayName || 'Tutor'}. Here's what's happening today.</p>
+          <p className="font-medium secondary-text">Welcome back, {profile?.name || user?.displayName || 'Tutor'}. Here's what's happening today.</p>
         </div>
         
         <div className="flex items-center bg-white/80 backdrop-blur-3xl border border-white/30 px-6 py-4 rounded-3xl w-full lg:max-w-sm shadow-sm focus-within:ring-2 ring-primary/30 transition-all group">
@@ -67,7 +74,10 @@ export function Dashboard({ bookings, onPageChange, onSearch, onRescheduleStart,
             placeholder="Search students name..." 
             type="text"
             onKeyDown={(e) => {
-              if (e.key === 'Enter') onSearch((e.target as HTMLInputElement).value);
+              if (e.key === 'Enter') {
+                setSearchTerm((e.target as HTMLInputElement).value);
+                setCurrentPage('bookings');
+              }
             }}
           />
         </div>
@@ -75,13 +85,13 @@ export function Dashboard({ bookings, onPageChange, onSearch, onRescheduleStart,
 
       {/* Quick Actions */}
       <div className="flex flex-wrap gap-4 md:gap-6">
-        <button onClick={() => onPageChange('availability')} className="btn-primary text-[10px] md:text-[11px] uppercase tracking-[0.2em] shadow-lg shadow-primary/20 rounded-2xl px-6 md:px-8 py-3 md:py-4 flex-1 sm:flex-none">
+        <button onClick={() => setCurrentPage('availability')} className="btn-primary text-[10px] md:text-[11px] uppercase tracking-[0.2em] shadow-lg shadow-primary/20 rounded-2xl px-6 md:px-8 py-3 md:py-4 flex-1 sm:flex-none">
           <Plus className="w-4 h-4" /> Availability
         </button>
-        <button onClick={() => onPageChange('pricing')} className="text-[10px] md:text-[11px] font-black uppercase tracking-[0.2em] bg-white border border-surface-variant text-on-surface px-6 md:px-8 py-3 md:py-4 rounded-2xl hover:bg-slate-50 transition-all flex items-center justify-center gap-2 shadow-sm active:scale-95 flex-1 sm:flex-none">
+        <button onClick={() => setCurrentPage('pricing')} className="text-[10px] md:text-[11px] font-black uppercase tracking-[0.2em] bg-white border border-surface-variant text-on-surface px-6 md:px-8 py-3 md:py-4 rounded-2xl hover:bg-slate-50 transition-all flex items-center justify-center gap-2 shadow-sm active:scale-95 flex-1 sm:flex-none">
           <Wallet className="w-4 h-4" /> Pricing
         </button>
-        <button onClick={() => onPageChange('bookings')} className="text-[10px] md:text-[11px] font-black uppercase tracking-[0.2em] bg-white border border-surface-variant text-on-surface px-6 md:px-8 py-3 md:py-4 rounded-2xl hover:bg-slate-50 transition-all flex items-center justify-center gap-2 shadow-sm active:scale-95 flex-1 sm:flex-none">
+        <button onClick={() => setCurrentPage('bookings')} className="text-[10px] md:text-[11px] font-black uppercase tracking-[0.2em] bg-white border border-surface-variant text-on-surface px-6 md:px-8 py-3 md:py-4 rounded-2xl hover:bg-slate-50 transition-all flex items-center justify-center gap-2 shadow-sm active:scale-95 flex-1 sm:flex-none">
           <BookOpen className="w-4 h-4" /> Bookings
         </button>
       </div>
@@ -96,7 +106,7 @@ export function Dashboard({ bookings, onPageChange, onSearch, onRescheduleStart,
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.1, duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-              onClick={() => onPageChange('bookings')}
+              onClick={() => setCurrentPage('bookings')}
               className="bg-white border border-slate-100 p-4 rounded-xl shadow-sm hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between min-h-[110px]"
             >
               {/* Icon row — sits above everything */}
@@ -132,7 +142,7 @@ export function Dashboard({ bookings, onPageChange, onSearch, onRescheduleStart,
       >
         <div className="flex items-center justify-between mb-4 md:mb-6 border-b border-surface-variant/50 pb-4">
           <h2 className="subheading">Upcoming Sessions</h2>
-          <button onClick={() => onPageChange('bookings')} className="label-caps text-primary hover:underline transition-all hover:tracking-tight">View All</button>
+          <button onClick={() => setCurrentPage('bookings')} className="label-caps text-primary hover:underline transition-all hover:tracking-tight">View All</button>
         </div>
         <div className="space-y-4 md:space-y-6">
           {upcomingSessions.length > 0 ? (
@@ -231,11 +241,8 @@ export function Dashboard({ bookings, onPageChange, onSearch, onRescheduleStart,
                               <button 
                                 onClick={async () => {
                                   if (confirm('Are you sure you want to permanently cancel this expired subscription booking?')) {
-                                    // Logic to update status to cancelled
                                     try {
-                                      const { doc, updateDoc } = await import('firebase/firestore');
-                                      const { db } = await import('../firebase');
-                                      await updateDoc(doc(db, 'bookings', session.id.toString()), { status: 'cancelled' });
+                                      await bookingService.updateStatus(session.id.toString(), 'cancelled', user?.displayName || 'Tutor', session);
                                     } catch(e) { console.error(e); }
                                   }
                                 }}
@@ -248,7 +255,10 @@ export function Dashboard({ bookings, onPageChange, onSearch, onRescheduleStart,
                       }
                       return (
                         <button 
-                          onClick={() => onJoinSession(session.id.toString())}
+                          onClick={() => {
+                            setActiveMeetingId(session.id.toString());
+                            setCurrentPage('live-class');
+                          }}
                           className={cn(
                             "flex-1 sm:flex-none text-white text-[10px] md:text-[11px] font-black uppercase tracking-widest px-5 md:px-7 py-2.5 md:py-3 rounded-2xl hover:scale-105 transition-all active:scale-95 flex items-center justify-center gap-2 shadow-lg animate-pulse",
                             session.status === 'live' ? "bg-emerald-500 shadow-emerald-500/20" : "bg-primary shadow-primary/20"
@@ -290,7 +300,7 @@ export function Dashboard({ bookings, onPageChange, onSearch, onRescheduleStart,
                   })()}
                   
                   <button 
-                    onClick={() => onPageChange('bookings')}
+                    onClick={() => setCurrentPage('bookings')}
                     className="flex-1 sm:flex-none bg-slate-100 text-on-surface text-[10px] md:text-[11px] font-black uppercase tracking-widest px-6 md:px-8 py-2.5 md:py-3 rounded-2xl hover:bg-slate-200 hover:-translate-y-0.5 transition-all active:scale-95 flex items-center justify-center gap-2 shadow-sm"
                   >
                     Details
@@ -308,16 +318,20 @@ export function Dashboard({ bookings, onPageChange, onSearch, onRescheduleStart,
       </motion.div>
 
       <AnimatePresence>
-        {rescheduleModalOpen && selectedBooking && onReschedule && (
+        {rescheduleModalOpen && selectedBooking && (
           <RescheduleModal
             booking={selectedBooking}
             allBookings={bookings}
-            availability={tutorAvailability}
+            availability={manualSlots}
             onClose={() => {
               setRescheduleModalOpen(false);
               setSelectedBooking(null);
             }}
-            onConfirm={onReschedule}
+            onConfirm={async (id, date, time) => {
+              await bookingService.reschedule(id.toString(), date, time, user?.displayName || 'Tutor', selectedBooking);
+              setRescheduleModalOpen(false);
+              setSelectedBooking(null);
+            }}
           />
         )}
       </AnimatePresence>

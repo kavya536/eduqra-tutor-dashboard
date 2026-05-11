@@ -1,10 +1,8 @@
 import { useState, FormEvent, ChangeEvent, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { GraduationCap, BadgeCheck, Video, User, Mail, Phone, Lock, Award, ShieldCheck, Clock, Globe, Wallet, Check, CheckCircle, AlertCircle, Eye, EyeOff, MapPin } from 'lucide-react';
-import { auth, db, storage } from '../firebase';
-import { doc, setDoc, updateDoc, serverTimestamp, addDoc, collection, query, where, getDocs } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
+import { authService } from '../services/authService';
+import { tutorService } from '../services/tutorService';
 import { cn } from '../lib/utils';
 
 interface RegistrationProps {
@@ -95,6 +93,9 @@ export function Registration({
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [recordingWarning, setRecordingWarning] = useState<string | null>(null);
+  const [stream, setStream] = useState<MediaStream | null>(null);
+  const [recorder, setRecorder] = useState<MediaRecorder | null>(null);
+  const [warningCount, setWarningCount] = useState(0);
   const videoPreviewRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
@@ -176,26 +177,13 @@ export function Registration({
 
   const checkEmailForAutofill = async (email: string, name: string) => {
     if (!email || !name || isCompletingProfile) return;
-    
     setIsCheckingEmail(true);
     setError(null);
-    
     try {
-      // Find previously rejected or existing profiles matching both name and email
-      const qUsers = query(
-        collection(db, 'users'), 
-        where("email", "==", email.toLowerCase()),
-        where("name", "==", name.trim())
-      );
+      const data = await tutorService.findProfileByEmailAndName(email, name) as any;
       
-      const snap = await getDocs(qUsers);
-      
-      if (!snap.empty) {
-        const docCount = snap.docs[0];
-        const data = docCount.data();
-        
-        // Silently autofill text fields when a matching profile is found
-        setExistingTutorData({ ...data, id: docCount.id });
+      if (data) {
+        setExistingTutorData(data);
         setFormData(prev => ({
           ...prev,
           name: data.name || prev.name,
@@ -205,7 +193,6 @@ export function Registration({
           targetClasses: data.targetClasses || '',
         }));
         
-        // Documents are NEVER autofilled — tutor must upload manually
         setFiles({
           profileImage: null,
           identityProof: null,
@@ -419,18 +406,15 @@ export function Registration({
         uid = existingTutorData.id;
       } else {
         try {
-          const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
+          const userCredential = await authService.signUp(formData.email, formData.password);
           uid = userCredential.user.uid;
         } catch (authErr: any) {
           if (authErr.code === 'auth/email-already-in-use') {
-            // AUTO-REPAIR: User exists in Auth but maybe missing from Firestore
-            // Try to sign in and proceed with backend sync to "repair" the database record
             try {
-              const signinCred = await signInWithEmailAndPassword(auth, formData.email, formData.password);
+              const signinCred = await authService.signIn(formData.email, formData.password);
               uid = signinCred.user.uid;
               setSubmissionState('🔄 Syncing existing account...');
             } catch (loginErr: any) {
-              // If sign-in also fails (e.g. wrong password), show the original error
               throw authErr;
             }
           } else {
@@ -463,52 +447,22 @@ export function Registration({
       }
       if (files.demoVideo) registerData.append('demoVideo', files.demoVideo);
 
-      // DIRECT FIRESTORE WRITE (Frontend): Ensure the document exists even if backend has rules/sync lag
-      const directTutorData = {
-        uid: uid,
-        name: formData.name,
-        email: formData.email.toLowerCase(),
-        phone: formData.phone,
-        qualification: formData.qualification,
-        experience: formData.experience,
-        targetClasses: formData.targetClasses,
-        status: 'pending',
-        role: 'tutor',
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      };
-
       try {
-        await setDoc(doc(db, 'users', uid), directTutorData, { merge: true });
-        console.log("✅ Frontend Firestore Write Success");
-        
-        // DIRECT NOTIFICATION: Ensure admin gets an alert even if backend sync is slow
-        await addDoc(collection(db, 'admin_notifications'), {
-          type: 'Registration',
-          tutorId: uid,
-          title: 'New Tutor Registration',
-          message: `${formData.name || formData.email} has registered and is awaiting verification.`,
-          time: serverTimestamp(),
-          read: false
+        await tutorService.createProfile(uid, {
+          name: formData.name,
+          email: formData.email.toLowerCase(),
+          phone: formData.phone,
+          qualification: formData.qualification,
+          experience: formData.experience,
+          targetClasses: formData.targetClasses,
         });
-        console.log("✅ Frontend Admin Notification Sent");
+        
+        await tutorService.notifyAdmin(uid, formData.name, formData.email);
       } catch (fsErr) {
-        console.error("❌ Frontend Firestore/Notification Write Failed:", fsErr);
-        // We continue anyway as the backend might still work
+        console.error("❌ Frontend sync failed:", fsErr);
       }
 
-      const hostname = window.location.hostname;
-      const response = await fetch(`http://${hostname}:5001/api/register-tutor`, {
-        method: 'POST',
-        body: registerData
-      });
-      
-      const responseData = await response.json().catch(() => ({}));
-      console.log("Registration API Response:", responseData);
-
-      if (!response.ok) {
-        throw new Error(responseData.message || "Database synchronization failed. Please try again.");
-      }
+      await tutorService.submitRegistration(registerData);
 
       setIsSuccess(true);
       setIsSubmitting(false);

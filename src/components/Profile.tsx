@@ -15,23 +15,22 @@ import {
 } from 'lucide-react';
 import { motion } from 'motion/react';
 
-interface ProfileProps {
-  onExperienceChange: (val: string) => void;
-  user: any;
-}
+import { useAuthStore } from '../store/useAuthStore';
+import { authService } from '../services/authService';
 
-export function Profile({ onExperienceChange, user }: ProfileProps) {
-  const [experience, setExperience] = useState(user?.experience || 'Fresher');
+export function Profile() {
+  const { user, profile } = useAuthStore();
+  const [experience, setExperience] = useState(profile?.experience || 'Fresher');
   const [formData, setFormData] = useState({
-    name: user?.displayName || user?.name || "Tutor",
-    email: user?.email || "",
-    phone: user?.phone || user?.mobile || user?.phoneNumber || "",
-    subjects: Array.isArray(user?.subjects) ? user.subjects : (typeof user?.subjects === 'string' ? user.subjects.split(',').map((s: string) => s.trim()).filter(Boolean) : []),
-    qualification: user?.qualification || "",
-    bio: user?.bio || "",
-    classPricing: user?.classPricing || "160",
-    upiId: user?.upiId || "",
-    subjectsPricing: user?.subjectsPricing || []
+    name: profile?.displayName || profile?.name || "Tutor",
+    email: profile?.email || user?.email || "",
+    phone: profile?.phone || profile?.mobile || profile?.phoneNumber || "",
+    subjects: Array.isArray(profile?.subjects) ? profile.subjects : (typeof profile?.subjects === 'string' ? profile.subjects.split(',').map((s: string) => s.trim()).filter(Boolean) : []),
+    qualification: profile?.qualification || "",
+    bio: profile?.bio || "",
+    classPricing: profile?.classPricing || "160",
+    upiId: profile?.upiId || "",
+    subjectsPricing: profile?.subjectsPricing || []
   });
   const [newSubject, setNewSubject] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -39,26 +38,27 @@ export function Profile({ onExperienceChange, user }: ProfileProps) {
   const [showSuccess, setShowSuccess] = useState(false);
 
   // Sync with user prop on initial load or if user changes externally
+  // Sync with profile from store
   useEffect(() => {
-    if (user) {
-      setExperience(user.experience || 'Fresher');
-      const safeSubjects = Array.isArray(user.subjects) 
-        ? user.subjects 
-        : (typeof user.subjects === 'string' ? user.subjects.split(',').map((s: string) => s.trim()).filter(Boolean) : []);
+    if (profile) {
+      setExperience(profile.experience || 'Fresher');
+      const safeSubjects = Array.isArray(profile.subjects) 
+        ? profile.subjects 
+        : (typeof profile.subjects === 'string' ? profile.subjects.split(',').map((s: string) => s.trim()).filter(Boolean) : []);
 
       setFormData({
-        name: user.displayName || user.name || "Tutor",
-        email: user.email || "",
-        phone: user.phone || user.mobile || user.phoneNumber || "",
+        name: profile.displayName || profile.name || "Tutor",
+        email: profile.email || user?.email || "",
+        phone: profile.phone || profile.mobile || profile.phoneNumber || "",
         subjects: safeSubjects,
-        qualification: user.qualification || "",
-        bio: user.bio || "",
-        classPricing: user.classPricing || "160",
-        upiId: user.upiId || "",
-        subjectsPricing: user.subjectsPricing || []
+        qualification: profile.qualification || "",
+        bio: profile.bio || "",
+        classPricing: profile.classPricing || "160",
+        upiId: profile.upiId || "",
+        subjectsPricing: profile.subjectsPricing || []
       });
     }
-  }, [user]);
+  }, [profile, user]);
 
   const handleSave = async (data: any) => {
     if (!auth.currentUser) return;
@@ -87,7 +87,7 @@ export function Profile({ onExperienceChange, user }: ProfileProps) {
     const userRef = doc(db, 'users', auth.currentUser.uid);
     
     try {
-      await updateDoc(userRef, {
+      await authService.updateProfile(user.uid, {
         name: data.name,
         displayName: data.name,
         email: data.email,
@@ -115,7 +115,6 @@ export function Profile({ onExperienceChange, user }: ProfileProps) {
 
   const handleExperienceChange = (val: string) => {
     setExperience(val);
-    onExperienceChange(val);
   };
 
   return (
@@ -126,10 +125,10 @@ export function Profile({ onExperienceChange, user }: ProfileProps) {
         <div className="flex flex-col sm:flex-row items-center gap-8 mb-10">
           <div className="relative group">
             <div className="w-32 h-32 rounded-full bg-primary/10 flex items-center justify-center font-black text-primary text-4xl border-4 border-background ring-4 ring-primary/20 transition-transform group-hover:scale-105 overflow-hidden">
-               {user?.profilePic || user?.avatar ? (
-                <img src={user.profilePic || user.avatar} className="w-full h-full object-cover" alt="Profile" />
+               {profile?.profilePic || profile?.avatar ? (
+                <img src={profile.profilePic || profile.avatar} className="w-full h-full object-cover" alt="Profile" />
                ) : (
-                user?.displayName?.[0] || user?.email?.[0]?.toUpperCase() || 'U'
+                profile?.displayName?.[0] || user?.email?.[0]?.toUpperCase() || 'U'
                )}
             </div>
           </div>
@@ -323,7 +322,7 @@ export function Profile({ onExperienceChange, user }: ProfileProps) {
           </div>
         </div>
 
-        {(user?.targetClasses?.includes('Graduate') || (Array.isArray(formData.subjects) && formData.subjects.some((s: string) => s.toLowerCase().includes('graduate')))) && (
+        {(profile?.targetClasses?.includes('Graduate') || (Array.isArray(formData.subjects) && formData.subjects.some((s: string) => s.toLowerCase().includes('graduate')))) && (
           <div className="pt-6 border-t border-slate-50">
 
               <label className="block text-[10px] font-black mb-3 uppercase tracking-wider text-primary">Subject-Specific Pricing (Graduate Courses)</label>

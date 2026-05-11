@@ -4,15 +4,9 @@ import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { useState, useEffect, useMemo } from 'react';
 
-interface AvailabilityProps {
-  slots: AvailabilitySlot[];
-  bookings: Booking[];
-  onAddSlot: (slot: Omit<AvailabilitySlot, 'id'>) => void;
-  onDeleteSlot: (id: number) => void;
-  onEditSlot: (id: number, updatedSlot: Partial<AvailabilitySlot>) => void;
-  onBatchAddSlots: (slots: Omit<AvailabilitySlot, 'id'>[]) => void;
-  onClearSlots: () => void;
-}
+import { useAuthStore } from '../store/useAuthStore';
+import { useBookingStore } from '../store/useBookingStore';
+import { authService } from '../services/authService';
 
 const dayOrder = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
@@ -78,7 +72,11 @@ function parseTime(t: string) {
   return 0;
 }
 
-export function Availability({ slots, bookings, onAddSlot, onDeleteSlot, onEditSlot, onBatchAddSlots, onClearSlots }: AvailabilityProps) {
+export function Availability() {
+  const { profile } = useAuthStore();
+  const { manualSlots: slots, bookings } = useBookingStore();
+  
+  const tutorId = profile?.id || '';
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentSlot, setCurrentSlot] = useState<Partial<AvailabilitySlot> | null>(null);
   const [editId, setEditId] = useState<number | null>(null);
@@ -275,19 +273,32 @@ export function Availability({ slots, bookings, onAddSlot, onDeleteSlot, onEditS
     }
 
     setError(null);
-
     setIsSaving(true);
+    
+    let updatedSlots = [...slots];
     if (editId) {
-      onEditSlot(editId, currentSlot);
+      updatedSlots = updatedSlots.map(s => s.id === editId ? { ...s, ...currentSlot } : s);
     } else {
-      onAddSlot(currentSlot as Omit<AvailabilitySlot, 'id'>);
+      updatedSlots.push({ ...currentSlot, id: Date.now() } as AvailabilitySlot);
     }
 
-    setTimeout(() => {
-      setIsModalOpen(false);
-      setIsSaving(false);
-      setEditId(null);
-    }, 600);
+    authService.updateAvailability(tutorId, updatedSlots)
+      .then(() => {
+        setIsModalOpen(false);
+        setIsSaving(false);
+        setEditId(null);
+      })
+      .catch(err => {
+        console.error(err);
+        setError("Failed to save slot");
+        setIsSaving(false);
+      });
+  };
+
+  const handleDeleteSlot = (id: number) => {
+    if (!confirm("Remove this availability slot?")) return;
+    const updatedSlots = slots.filter(s => s.id !== id);
+    authService.updateAvailability(tutorId, updatedSlots);
   };
 
   return (
@@ -411,7 +422,7 @@ export function Availability({ slots, bookings, onAddSlot, onDeleteSlot, onEditS
                               </span>
                               {!slot.booked && (
                                 <button 
-                                  onClick={(e) => { e.stopPropagation(); onDeleteSlot(slot.id); }}
+                                  onClick={(e) => { e.stopPropagation(); handleDeleteSlot(slot.id); }}
                                   className="opacity-0 group-hover:opacity-100 p-1 hover:bg-rose-100 rounded-lg text-rose-500 transition-all"
                                 >
                                   <Trash2 size={12} />

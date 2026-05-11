@@ -16,35 +16,40 @@ function parseTimeStr(t: string) {
   return hours * 60 + parseInt(m, 10);
 }
 
-interface BookingsProps {
-  bookings: Booking[];
-  onStatusChange: (id: any, status: BookingStatus) => void;
-  onRescheduleStart: (id: any) => void;
-  onReschedule?: (id: any, date: string, time: string) => Promise<void>;
-  onPageChange: (page: PageId) => void;
-  onOpenChat?: (booking: Booking) => void;
-  initialRescheduleId?: string | number | null;
-  onClearReschedule?: () => void;
-  tutorAvailability?: AvailabilitySlot[];
-}
+import { useAuthStore } from '../store/useAuthStore';
+import { useBookingStore } from '../store/useBookingStore';
+import { useUIStore } from '../store/useUIStore';
+import { useChatStore } from '../store/useChatStore';
+import { useLiveClassStore } from '../store/useLiveClassStore';
+import { bookingService } from '../services/bookingService';
+import { chatService } from '../services/chatService';
 
-export function Bookings({ bookings, onStatusChange, onRescheduleStart, onReschedule, onPageChange, onOpenChat, initialRescheduleId, onClearReschedule, tutorAvailability = [] }: BookingsProps) {
+import { useBookingListener } from '../hooks/useBookingListener';
+
+export function Bookings() {
+  // Activate isolated listener for booking updates
+  useBookingListener();
+
+  const profile = useAuthStore(state => state.profile);
+  const { bookings, manualSlots, openRescheduleFor, setOpenRescheduleFor } = useBookingStore();
+  const { setCurrentPage, searchTerm: globalSearchTerm, setSearchTerm: setGlobalSearchTerm } = useUIStore();
+  const { setActiveChatId } = useChatStore();
   const [filter, setFilter] = useState<BookingStatus | 'All'>('All');
-  const [searchTerm, setSearchTerm] = useState('');
+  const [localSearchTerm, setLocalSearchTerm] = useState(globalSearchTerm);
   const [rescheduleModalOpen, setRescheduleModalOpen] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (initialRescheduleId) {
-      const booking = bookings.find(b => b.id === initialRescheduleId);
+    if (openRescheduleFor) {
+      const booking = bookings.find(b => b.id === openRescheduleFor);
       if (booking) {
         setSelectedBooking(booking);
         setRescheduleModalOpen(true);
       }
-      if (onClearReschedule) onClearReschedule();
+      setOpenRescheduleFor(null);
     }
-  }, [initialRescheduleId, onClearReschedule, bookings]);
+  }, [openRescheduleFor, setOpenRescheduleFor, bookings]);
 
   const handleRescheduleClick = (booking: Booking) => {
     setSelectedBooking(booking);
@@ -62,8 +67,8 @@ export function Bookings({ bookings, onStatusChange, onRescheduleStart, onResche
       : b.status === filter;
     const name = b.name || '';
     const subject = b.subject || '';
-    const matchesSearch = name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          subject.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = name.toLowerCase().includes(localSearchTerm.toLowerCase()) || 
+                          subject.toLowerCase().includes(localSearchTerm.toLowerCase());
     return matchesFilter && matchesSearch;
   });
 
@@ -88,8 +93,11 @@ export function Bookings({ bookings, onStatusChange, onRescheduleStart, onResche
             className="bg-transparent border-none focus:ring-0 secondary-text w-full placeholder:text-slate-400 outline-none font-medium" 
             placeholder="Search student or subject..." 
             type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            value={localSearchTerm}
+            onChange={(e) => {
+              setLocalSearchTerm(e.target.value);
+              setGlobalSearchTerm(e.target.value);
+            }}
           />
         </div>
       </div>
@@ -198,25 +206,25 @@ export function Bookings({ bookings, onStatusChange, onRescheduleStart, onResche
               </div>
 
               <div className="mt-auto space-y-2">
-                {booking.status === 'pending' && (
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    <button 
-                      onClick={() => onStatusChange(booking.id, 'confirmed')}
-                      className="flex-1 bg-primary text-white font-bold py-2.5 rounded-xl text-[10px] hover:bg-primary/90 transition-all shadow-sm active:scale-95 flex items-center justify-center gap-1.5"
-                    >
-                      <Check className="w-3.5 h-3.5" /> Accept
-                    </button>
-                    <button 
-                      onClick={() => {
-                        onStatusChange(booking.id, 'cancelled');
-                        handleRescheduleClick(booking); // Proactively suggest rescheduling
-                      }}
-                      className="flex-1 bg-red-50 text-red-600 font-bold py-2.5 rounded-xl text-[10px] hover:bg-red-100 transition-all shadow-sm active:scale-95 flex items-center justify-center gap-1.5"
-                    >
-                      <X className="w-3.5 h-3.5" /> Reject & Reschedule
-                    </button>
-                  </div>
-                )}
+                  {booking.status === 'pending' && (
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <button 
+                        onClick={() => bookingService.updateStatus(booking.id.toString(), 'confirmed', profile?.name || 'Tutor', booking)}
+                        className="flex-1 bg-primary text-white font-bold py-2.5 rounded-xl text-[10px] hover:bg-primary/90 transition-all shadow-sm active:scale-95 flex items-center justify-center gap-1.5"
+                      >
+                        <Check className="w-3.5 h-3.5" /> Accept
+                      </button>
+                      <button 
+                        onClick={async () => {
+                          await bookingService.updateStatus(booking.id.toString(), 'cancelled', profile?.name || 'Tutor', booking);
+                          handleRescheduleClick(booking); // Proactively suggest rescheduling
+                        }}
+                        className="flex-1 bg-red-50 text-red-600 font-bold py-2.5 rounded-xl text-[10px] hover:bg-red-100 transition-all shadow-sm active:scale-95 flex items-center justify-center gap-1.5"
+                      >
+                        <X className="w-3.5 h-3.5" /> Reject & Reschedule
+                      </button>
+                    </div>
+                  )}
                 
                 <div className="flex gap-2">
                   {(() => {
@@ -272,14 +280,21 @@ export function Bookings({ bookings, onStatusChange, onRescheduleStart, onResche
                     <div className="flex flex-col gap-2">
                       <div className="flex flex-col sm:flex-row gap-2">
                         <button 
-                          onClick={() => onOpenChat?.(booking)}
+                          onClick={async () => {
+                            if (!profile?.id) return;
+                            const chatId = `${profile.id}_${booking.studentEmail.replace(/\./g, '_')}`;
+                            const studentName = booking.name || (booking as any).studentName || 'Student';
+                            await chatService.initializeChat(chatId, profile.id, profile.name, profile.avatar || '', booking.studentEmail, studentName);
+                            setActiveChatId(chatId);
+                            setCurrentPage('chat');
+                          }}
                           className="flex-1 bg-primary/5 text-primary font-bold py-2.5 rounded-xl text-[10px] hover:bg-primary/10 transition-all active:scale-95 flex items-center justify-center gap-1.5"
                         >
                           <MessageSquare className="w-3.5 h-3.5" /> Chat
                         </button>
                         {isActive ? (
                           <button 
-                            onClick={() => onPageChange('live-class')}
+                            onClick={() => setCurrentPage('live-class')}
                             className="flex-1 bg-primary text-white font-bold py-2.5 rounded-xl text-[10px] hover:bg-primary/90 transition-all active:scale-95 flex items-center justify-center gap-2 shadow-lg shadow-primary/20 animate-pulse"
                           >
                             <Clock className="w-3.5 h-3.5" /> Join Class
@@ -296,7 +311,7 @@ export function Bookings({ bookings, onStatusChange, onRescheduleStart, onResche
                       {isPast && (
                         <div className="flex flex-col gap-2 w-full mt-1">
                           <button 
-                            onClick={() => onStatusChange(booking.id, 'completed')}
+                            onClick={() => bookingService.updateStatus(booking.id.toString(), 'completed', profile?.name || 'Tutor', booking)}
                             className="w-full bg-emerald-500 text-white font-bold py-3 rounded-xl text-[10px] hover:bg-emerald-600 transition-all active:scale-95 flex items-center justify-center gap-1.5 shadow-sm"
                           >
                             <Check className="w-3.5 h-3.5" /> Mark Conducted (Continue)
@@ -320,13 +335,16 @@ export function Bookings({ bookings, onStatusChange, onRescheduleStart, onResche
       
       {/* Reschedule Modal */}
       <AnimatePresence>
-        {rescheduleModalOpen && selectedBooking && onReschedule && (
+        {rescheduleModalOpen && selectedBooking && (
           <RescheduleModal
             booking={selectedBooking}
             allBookings={bookings}
-            availability={tutorAvailability}
+            availability={manualSlots}
             onClose={handleRescheduleClose}
-            onConfirm={onReschedule}
+            onConfirm={async (id, date, time) => {
+              await bookingService.reschedule(id.toString(), date, time, profile?.name || 'Tutor', selectedBooking);
+              handleRescheduleClose();
+            }}
           />
         )}
       </AnimatePresence>

@@ -15,11 +15,8 @@ interface PricingEntry {
   totalAmountWithFees: number;
 }
 
-interface PricingProps {
-  experience: number;
-  tutorId?: string;
-  targetClasses?: string;
-}
+import { useAuthStore } from '../store/useAuthStore';
+import { authService } from '../services/authService';
 
 const PRIMARY_BLUE = "#0047AB";
 
@@ -115,7 +112,10 @@ const SUBJECT_LISTS: Record<string, string[]> = {
   ]
 };
 
-export function Pricing({ experience, tutorId, targetClasses }: PricingProps) {
+export function Pricing() {
+  const { profile } = useAuthStore();
+  const tutorId = profile?.id || '';
+  const targetClasses = profile?.targetClasses || '';
   const [entries, setEntries] = useState<PricingEntry[]>([]);
   const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [loading, setLoading] = useState(true);
@@ -131,24 +131,16 @@ export function Pricing({ experience, tutorId, targetClasses }: PricingProps) {
   const isSchool = rawClasses.includes('Primary') || rawClasses.includes('Middle') || rawClasses.includes('Nursery') || rawClasses.includes('Secondary') || rawClasses.includes('1-5') || rawClasses.includes('6-10');
 
   useEffect(() => {
-    if (!tutorId) return;
-    const unsub = onSnapshot(doc(db, 'users', tutorId), (snap) => {
-      const data = snap.data();
-      if (data?.pricingEntries) {
-        setEntries(data.pricingEntries);
-      } else {
-        setEntries([]);
-      }
-      // Load custom subjects that are NOT in the standard lists
-      if (data?.subjects) {
-        const standardSubjects = Object.values(SUBJECT_LISTS).flat();
-        const customs = data.subjects.filter((s: string) => !standardSubjects.includes(s));
-        setExistingCustoms(customs);
-      }
-      setLoading(false);
-    });
-    return () => unsub();
-  }, [tutorId]);
+    if (profile?.pricingEntries) {
+      setEntries(profile.pricingEntries);
+    }
+    if (profile?.subjects) {
+      const standardSubjects = Object.values(SUBJECT_LISTS).flat();
+      const customs = profile.subjects.filter((s: string) => !standardSubjects.includes(s));
+      setExistingCustoms(customs);
+    }
+    setLoading(false);
+  }, [profile]);
 
   const addEntry = () => {
     const defaultType = isGraduate ? 'monthly' : 'hourly';
@@ -191,7 +183,7 @@ export function Pricing({ experience, tutorId, targetClasses }: PricingProps) {
       return;
     }
     try {
-      await updateDoc(doc(db, 'users', tutorId), {
+      await authService.updateProfile(tutorId, {
         pricingEntries: entries,
         price: entries[0].hourlyRate || (entries[0].baseAmount / 30),
         subjects: entries.map(e => e.subject),

@@ -1,8 +1,7 @@
 import { Mail, Lock, AlertCircle, ArrowLeft, CheckCircle2, Eye, EyeOff } from 'lucide-react';
 import { useState, FormEvent, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { auth } from '../firebase';
-import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
+import { authService } from '../services/authService';
 
 
 interface LoginProps {
@@ -15,10 +14,13 @@ const mapAuthError = (code: string) => {
   switch (code) {
     case 'auth/user-not-found': return "⚠️ No account found with this email address.";
     case 'auth/wrong-password':
-    case 'auth/invalid-credential': return "Incorrect email or password";
+    case 'auth/invalid-credential': return "❌ Incorrect email or password. Please try again.";
     case 'auth/too-many-requests': return "⚠️ Too many failed attempts. Please try again later or reset your password.";
     case 'auth/invalid-email': return "⚠️ Please enter a valid email address.";
-    default: return "⚠️ An unexpected error occurred. Please try again.";
+    case 'auth/network-request-failed': return "🌐 Network error. Please check your internet connection and try again.";
+    case 'auth/user-disabled': return "🚫 Your account has been disabled. Please contact support.";
+    case 'auth/operation-not-allowed': return "⚠️ Email/Password sign-in is not enabled. Please contact admin.";
+    default: return "⚠️ An unexpected error occurred. Please check your credentials and try again.";
   }
 };
 
@@ -48,7 +50,7 @@ export function Login({ onLogin, onSwitchToRegister, onReapply }: LoginProps) {
       const emailRegex = /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i;
       if (!emailRegex.test(email)) throw new Error("Please enter a valid email address.");
       
-      await signInWithEmailAndPassword(auth, email, password);
+      await authService.signIn(email, password);
       // App.tsx's onAuthStateChanged will handle the rest of the flow,
       // including checking profile existence and setting the appropriate view.
     } catch (err: any) {
@@ -68,9 +70,7 @@ export function Login({ onLogin, onSwitchToRegister, onReapply }: LoginProps) {
     }
     setIsSendingReset(true);
     try {
-      // Use the standard Firebase client SDK to send reset emails. 
-      // This is more reliable as it doesn't depend on backend admin credentials.
-      await sendPasswordResetEmail(auth, email.toLowerCase());
+      await authService.sendPasswordReset(email);
       setSuccessMessage("✅ Reset link sent! Please check your inbox.");
     } catch (err: any) {
       console.error("❌ Reset Error:", err);

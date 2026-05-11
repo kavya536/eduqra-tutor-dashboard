@@ -46,6 +46,16 @@ input::-webkit-credentials-auto-fill-button {
   --color-surface-variant: #f1f5f9;
   --color-on-surface: #0f172a;
   --color-on-surface-variant: #64748b;
+
+  /* Premium Gradient Tokens */
+  --gradient-premium: linear-gradient(135deg, #004AAD 0%, #002D6B 100%);
+  --gradient-soft: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  --gradient-glass: linear-gradient(135deg, rgba(255, 255, 255, 0.7) 0%, rgba(255, 255, 255, 0.3) 100%);
+  
+  /* Glassmorphism Tokens */
+  --glass-blur: blur(20px);
+  --glass-border: 1px solid rgba(255, 255, 255, 0.2);
+  --glass-shadow: 0 8px 32px 0 rgba(0, 74, 173, 0.1);
   
   --radius-4xl: 2rem;
   --radius-5xl: 3rem;

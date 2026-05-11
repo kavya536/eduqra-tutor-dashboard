@@ -4,10 +4,8 @@ import { motion } from 'motion/react';
 import { cn } from '../lib/utils';
 import { useMemo } from 'react';
 
-interface ReviewsProps {
-  reviews: Review[];
-  profile: any;
-}
+import { useAuthStore } from '../store/useAuthStore';
+import { useReviewStore } from '../store/useReviewStore';
 
 const getMockRating = (id: string) => {
   if (!id) return 4.5;
@@ -22,7 +20,14 @@ const getMockCount = (id: string) => {
   return 100 + (Math.abs(hash) % 50);
 };
 
-export function Reviews({ reviews, profile }: ReviewsProps) {
+import { useReviewsListener } from '../hooks/useReviewsListener';
+
+export function Reviews() {
+  // Activate isolated listener for student feedback
+  useReviewsListener();
+
+  const profile = useAuthStore(state => state.profile);
+  const reviews = useReviewStore(state => state.reviews);
   const mockR = getMockRating(profile?.id || 'default');
   const mockC = getMockCount(profile?.id || 'default');
   
@@ -54,7 +59,7 @@ export function Reviews({ reviews, profile }: ReviewsProps) {
             {/* Sized-Down Avatar */}
             <div className="relative">
               <div className="w-20 h-20 md:w-24 md:h-24 rounded-full bg-slate-50 flex items-center justify-center font-black text-primary text-2xl border-4 border-white shadow-xl ring-1 ring-slate-100 italic">
-                AJ
+                {profile?.name?.[0] || 'T'}
               </div>
               <div className="absolute bottom-1 right-1 w-5 h-5 bg-emerald-500 border-2 border-white rounded-full shadow-lg" />
             </div>
@@ -95,12 +100,12 @@ export function Reviews({ reviews, profile }: ReviewsProps) {
 
           {/* MIDDLE: Name & Bio (Centralized Focus) */}
           <div className="flex-1 text-center md:text-left flex flex-col items-center md:items-start justify-center">
-            <h2 className="text-2xl font-black text-on-surface tracking-tight italic">Alex Johnson</h2>
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-primary mt-1 opacity-60">Professional Mathematics & Physics Tutor</p>
+            <h2 className="text-2xl font-black text-on-surface tracking-tight italic">{profile?.name || 'Tutor'}</h2>
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-primary mt-1 opacity-60">Professional {profile?.subjects?.join(' & ') || 'Academic'} Tutor</p>
             
             <div className="mt-2">
               <p className="text-on-surface/70 text-sm font-medium leading-relaxed max-w-lg italic">
-                "Empowering students to master complex concepts through personalized guidance and analytical problem-solving techniques."
+                "{profile?.bio || 'Dedicated to student success through personalized learning paths.'}"
               </p>
             </div>
           </div>

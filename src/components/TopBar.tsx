@@ -4,15 +4,9 @@ import { PageId, TutorNotification } from '../types';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 
-interface TopBarProps {
-  onPageChange: (page: PageId) => void;
-  onToggleSidebar?: () => void;
-  onLogout: () => void;
-  notifications: TutorNotification[];
-  onMarkAllRead: () => void;
-  onMarkRead: (id: string) => void;
-  user: any;
-}
+import { useAuthStore } from '../store/useAuthStore';
+import { useNotificationStore } from '../store/useNotificationStore';
+import { useUIStore } from '../store/useUIStore';
 
 const notifIconMap = {
   booking: <BookOpen className="w-4 h-4 text-primary" />,
@@ -26,7 +20,16 @@ const notifBgMap = {
   review:  'bg-amber-50',
 };
 
-export function TopBar({ onPageChange, onToggleSidebar, onLogout, notifications, onMarkAllRead, onMarkRead, user }: TopBarProps) {
+export function TopBar() {
+  const { user, profile } = useAuthStore();
+  const { notifications, markRead, markAllRead } = useNotificationStore();
+  const { isSidebarOpen, setIsSidebarOpen, setCurrentPage, setShowLogoutConfirm } = useUIStore();
+  
+  const onPageChange = setCurrentPage;
+  const onToggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
+  const onLogout = () => setShowLogoutConfirm(true);
+  const onMarkAllRead = markAllRead;
+  const onMarkRead = markRead;
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen]     = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
@@ -43,7 +46,7 @@ export function TopBar({ onPageChange, onToggleSidebar, onLogout, notifications,
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const isProfileIncomplete = !user?.upiId || !Array.isArray(user?.subjects) || user.subjects.length === 0;
+  const isProfileIncomplete = !profile?.upiId || !Array.isArray(profile?.subjects) || profile.subjects.length === 0;
 
   return (
     <header className="sticky top-0 right-0 w-full z-40 bg-background/80 backdrop-blur-3xl shadow-sm border-b border-surface-variant/50 flex justify-between items-center px-4 md:px-10 py-3 md:py-4 transition-all gap-2 md:gap-4">
@@ -197,12 +200,12 @@ export function TopBar({ onPageChange, onToggleSidebar, onLogout, notifications,
           >
             <div className="text-right hidden sm:block">
               <p className="text-sm font-black text-on-surface group-hover:text-primary transition-colors font-display tracking-tight">
-                {user?.name || user?.displayName || 'Tutor Account'}
+                {profile?.name || user?.displayName || 'Tutor Account'}
               </p>
               <p className="label-caps opacity-60">Verified Tutor</p>
             </div>
             <div className="relative w-11 h-11 rounded-2xl bg-primary text-white flex items-center justify-center font-black text-sm shadow-lg shadow-primary/20 group-hover:scale-110 group-hover:rotate-3 transition-all">
-              {user?.displayName?.[0] || user?.email?.[0]?.toUpperCase() || 'U'}
+              {profile?.name?.[0] || user?.displayName?.[0] || user?.email?.[0]?.toUpperCase() || 'U'}
               {isProfileIncomplete && (
                 <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-red-500 rounded-full border-[2.5px] border-white z-10 animate-bounce" />
               )}
@@ -219,8 +222,8 @@ export function TopBar({ onPageChange, onToggleSidebar, onLogout, notifications,
                 className="absolute top-[calc(100%+10px)] right-0 w-56 bg-white rounded-2xl shadow-xl border border-surface-variant py-2 z-[100] overflow-hidden"
               >
                 <div className="px-4 py-3 border-b border-surface-variant mb-1">
-                  <p className="font-black text-primary text-sm truncate">{user?.name || user?.displayName || 'Tutor'}</p>
-                  <p className="text-[10px] text-on-surface-variant font-bold truncate">{user?.email}</p>
+                  <p className="font-black text-primary text-sm truncate">{profile?.name || user?.displayName || 'Tutor'}</p>
+                  <p className="text-[10px] text-on-surface-variant font-bold truncate">{profile?.email || user?.email}</p>
                 </div>
                 <button onClick={() => { onPageChange('profile'); setIsProfileOpen(false); }}
                   className="w-full text-left px-4 py-2.5 hover:bg-primary/5 text-xs font-bold flex items-center gap-3 transition-colors">

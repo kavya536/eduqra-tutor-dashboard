@@ -10,19 +10,16 @@ import {
   GraduationCap,
   User,
   X,
-  FileText
+  FileText,
+  Briefcase
 } from 'lucide-react';
+
 import { PageId } from '../types';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 
-interface SidebarProps {
-  currentPage: PageId;
-  onPageChange: (page: PageId) => void;
-  isOpen?: boolean;
-  onClose?: () => void;
-  unreadChatCount?: number;
-}
+import { useUIStore } from '../store/useUIStore';
+import { useChatStore } from '../store/useChatStore';
 
 const navItems: { id: PageId; name: string; icon: React.ElementType }[] = [
   { id: 'dashboard', name: 'Dashboard', icon: LayoutDashboard },
@@ -31,12 +28,18 @@ const navItems: { id: PageId; name: string; icon: React.ElementType }[] = [
   { id: 'pricing', name: 'Pricing', icon: Tag },
   { id: 'bookings', name: 'Bookings', icon: BookOpen },
   { id: 'notes', name: 'Notes', icon: FileText },
+  { id: 'projects', name: 'Projects', icon: Briefcase },
   { id: 'reviews', name: 'Reviews', icon: Star },
+
   { id: 'kyc', name: 'KYC & Pay', icon: ShieldCheck },
   { id: 'profile', name: 'My Profile', icon: User },
 ];
 
-export function Sidebar({ currentPage, onPageChange, isOpen, onClose, unreadChatCount }: SidebarProps) {
+export function Sidebar() {
+  const { currentPage, setCurrentPage, isSidebarOpen: isOpen, setIsSidebarOpen } = useUIStore();
+  const { contacts } = useChatStore();
+  const unreadChatCount = contacts.filter(c => c.unread > 0).length;
+  const onClose = () => setIsSidebarOpen(false);
   const content = (
     <aside className={cn(
       "h-screen w-[240px] bg-background border-r border-slate-200 flex flex-col p-5 gap-3 shadow-2xl md:shadow-none",
@@ -72,7 +75,7 @@ export function Sidebar({ currentPage, onPageChange, isOpen, onClose, unreadChat
           return (
             <button
               key={item.id}
-              onClick={() => { onPageChange(item.id); onClose?.(); }}
+              onClick={() => { setCurrentPage(item.id); onClose(); }}
               className={cn(
                 "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-300 group relative overflow-hidden",
                 isActive 

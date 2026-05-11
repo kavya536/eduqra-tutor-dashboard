@@ -4,33 +4,24 @@ import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 
-interface ChatProps {
-  contacts: ChatContact[];
-  activeContactId: string | null;
-  onContactSelect: (id: string) => void;
-  onSendMessage: (contactId: string, text: string, messageId?: any) => void;
-  onSpecialMessage: (contactId: string, payload: any) => Promise<void>;
-  onDeleteMessage: (messageId: string, everyone: boolean) => void;
-  onVote: (messageId: string, optionIndex: number) => Promise<void>;
-  profile: any;
-}
+import { useAuthStore } from '../store/useAuthStore';
+import { useChatStore } from '../store/useChatStore';
+import { chatService } from '../services/chatService';
 
-export function Chat({ 
-  contacts, 
-  activeContactId, 
-  onContactSelect, 
-  onSendMessage, 
-  onSpecialMessage,
-  onDeleteMessage,
-  onVote,
-  profile
-}: ChatProps) {
+import { useChatListener } from '../hooks/useChatListener';
+
+export function Chat() {
+  // Activate isolated listener for messaging
+  useChatListener();
+
+  const profile = useAuthStore(state => state.profile);
+  const { contacts, activeChatId: activeContactId, setActiveChatId: onContactSelect } = useChatStore();
   const [inputText, setInputText] = useState('');
   const [showMobileChat, setShowMobileChat] = useState(!!activeContactId);
   const [editingMessageId, setEditingMessageId] = useState<any>(null);
   const [isAttachmentMenuOpen, setIsAttachmentMenuOpen] = useState(false);
   const [isPollModalOpen, setIsPollModalOpen] = useState(false);
-  const [pollDraft, setPollDraft] = useState({ question: '', options: ['', ''], allowMultiple: true });
+  const [pollDraft, setPollDraft] = useState({ question: '', options: ['', ''], allowMultiple: true, isAnonymous: false });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -55,33 +46,60 @@ export function Chat({
     }
   }, [activeContactId]);
 
-  const handleSend = () => {
-    if (inputText.trim() && activeContactId) {
-      onSendMessage(activeContactId, inputText, editingMessageId || undefined);
+  const handleSend = async (e?: React.KeyboardEvent | React.MouseEvent) => {
+    if (e && (e as React.KeyboardEvent).key === 'Enter') {
+      e.preventDefault();
+    }
+
+    if (inputText.trim() && activeContactId && profile?.id) {
+      const textToSend = inputText.trim();
+      const editingId = editingMessageId;
+      
+      // Clear input immediately for better UX
       setInputText('');
       setEditingMessageId(null);
+
+      try {
+        await chatService.sendMessage(
+          activeContactId,
+          textToSend,
+          profile.id,
+          profile.name,
+          { messageId: editingId || undefined }
+        );
+      } catch (err) {
+        console.error("Chat send error:", err);
+        // Restore text on failure
+        if (!editingId) setInputText(textToSend);
+      }
     }
   };
 
   const handleSendPoll = async () => {
-    if (!activeContactId || !pollDraft.question.trim() || pollDraft.options.filter(o => o.trim()).length < 2) return;
-    await onSpecialMessage(activeContactId, {
-      type: 'poll',
-      pollData: {
-        question: pollDraft.question.trim(),
-        options: pollDraft.options.filter(o => o.trim()),
-        allowMultiple: pollDraft.allowMultiple,
-        votes: {}
+    if (!activeContactId || !pollDraft.question.trim() || pollDraft.options.filter(o => o.trim()).length < 2 || !profile?.id) return;
+    await chatService.sendMessage(
+      activeContactId, 
+      '', // text is empty for polls
+      profile.id, 
+      profile.name, 
+      {
+        type: 'poll',
+        pollData: {
+          question: pollDraft.question.trim(),
+          options: pollDraft.options.filter(o => o.trim()),
+          allowMultiple: pollDraft.allowMultiple,
+          isAnonymous: pollDraft.isAnonymous,
+          votes: {}
+        }
       }
-    });
+    );
     setIsPollModalOpen(false);
-    setPollDraft({ question: '', options: ['', ''], allowMultiple: true });
+    setPollDraft({ question: '', options: ['', ''], allowMultiple: true, isAnonymous: false });
   };
 
   const attachmentOptions = [
     { icon: FileText, label: 'Document', color: 'bg-indigo-500 text-white' },
     { icon: Camera, label: 'Camera', color: 'bg-rose-500 text-white' },
-    { icon: BarChart2, label: 'Poll', color: 'bg-amber-500 text-white' },
   ];
 
   const cancelEdit = () => {
@@ -271,20 +289,34 @@ export function Chat({
                           )}
                         >
                           <div className="flex flex-col items-end gap-1 max-w-[85%] md:max-w-[70%]">
-                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                              {isMe && !msg.deletedForEveryone && (
-                                <button
-                                  onClick={() => {
-                                    setInputText(msg.text);
-                                    setEditingMessageId(msg.id);
-                                  }}
-                                  className="bg-white/90 p-1.5 rounded-full shadow-sm hover:bg-primary hover:text-white border border-primary/10 transition-colors"
-                                >
-                                  <Edit2 size={10} />
-                                </button>
-                              )}
+                            <div className="flex gap-1 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity absolute -top-8 right-0 md:relative md:top-0">
+                               {isMe && !msg.deletedForEveryone && (() => {
+                                 // 1. WhatsApp-like 15 minute edit window
+                                 const sentTime = (msg as any).timestamp?.seconds ? (msg as any).timestamp.seconds * 1000 : Date.now();
+                                 const timeWindowOk = (Date.now() - sentTime) < 15 * 60 * 1000;
+                                 
+                                 // 2. Hide if seen by student (studentUnreadCount is 0 means they've opened the chat)
+                                 const isSeen = (activeContact?.studentUnreadCount || 0) === 0;
+                                 
+                                 // 3. Hide if student has already replied AFTER this message
+                                 const hasReplied = activeContact?.messages.slice(i + 1).some(m => m.sender === 'student');
+                                 
+                                 const canEdit = timeWindowOk && !isSeen && !hasReplied;
+                                 
+                                 return canEdit && (
+                                   <button
+                                     onClick={() => {
+                                       setInputText(msg.text);
+                                       setEditingMessageId(msg.id);
+                                     }}
+                                     className="bg-white/90 p-1.5 rounded-full shadow-sm hover:bg-primary hover:text-white border border-primary/10 transition-colors"
+                                   >
+                                     <Edit2 size={10} />
+                                   </button>
+                                 );
+                               })()}
                               <button
-                                onClick={() => onDeleteMessage(msg.id as any, false)}
+                                onClick={() => chatService.deleteMessage(activeContactId!, msg.id, false)}
                                 className="bg-white/90 p-1.5 rounded-full shadow-sm hover:bg-rose-500 hover:text-white border border-rose-500/10 transition-colors"
                                 title="Delete for me"
                               >
@@ -292,7 +324,7 @@ export function Chat({
                               </button>
                               {isMe && !msg.deletedForEveryone && (
                                 <button
-                                  onClick={() => onDeleteMessage(msg.id as any, true)}
+                                  onClick={() => chatService.deleteMessage(activeContactId!, msg.id, true)}
                                   className="bg-white/90 p-1.5 rounded-full shadow-sm hover:bg-rose-600 hover:text-white border border-rose-600/10 transition-colors text-rose-600"
                                   title="Delete for everyone"
                                 >
@@ -312,7 +344,7 @@ export function Chat({
                                       <BarChart2 size={16} /> {msg.pollData.question}
                                     </h4>
                                     <button 
-                                      onClick={() => onDeleteMessage(msg.id as any, true)}
+                                      onClick={() => chatService.deleteMessage(activeContactId!, msg.id, true)}
                                       className={cn(
                                         "shrink-0 p-1.5 rounded-lg transition-all",
                                         isMe ? "hover:bg-white/20 text-white" : "hover:bg-rose-50 text-rose-500"
@@ -332,7 +364,20 @@ export function Chat({
                                       return (
                                         <button 
                                           key={idx}
-                                          onClick={() => onVote(msg.id as any, idx)}
+                                          onClick={() => {
+                                            const emailKey = profile?.id?.replace(/\./g, '_') || '';
+                                            let userVotes = [...(votes[emailKey] || [])];
+                                            if (msg.pollData.allowMultiple) {
+                                              if (userVotes.includes(idx)) {
+                                                userVotes = userVotes.filter((v: number) => v !== idx);
+                                              } else {
+                                                userVotes.push(idx);
+                                              }
+                                            } else {
+                                              userVotes = userVotes.includes(idx) ? [] : [idx];
+                                            }
+                                            chatService.voteOnChatPoll(activeContactId!, msg.id, { ...votes, [emailKey]: userVotes });
+                                          }}
                                           className={cn(
                                             "w-full text-left p-2 md:p-3 rounded-xl border-2 transition-all relative overflow-hidden group",
                                             hasVoted 
@@ -454,9 +499,12 @@ export function Chat({
                                 key={opt.label}
                                 onClick={() => {
                                   setIsAttachmentMenuOpen(false);
-                                  if (opt.label === 'Document') fileInputRef.current?.click();
-                                  else if (opt.label === 'Camera') cameraInputRef.current?.click();
-                                  else if (opt.label === 'Poll') setIsPollModalOpen(true);
+                                  // Use a small timeout to ensure the menu state update doesn't interfere with the programmatic click
+                                  setTimeout(() => {
+                                    if (opt.label === 'Document') fileInputRef.current?.click();
+                                    else if (opt.label === 'Camera') cameraInputRef.current?.click();
+                                    else if (opt.label === 'Poll') setIsPollModalOpen(true);
+                                  }, 100);
                                 }}
                                 className="w-full flex items-center gap-3 p-2.5 hover:bg-slate-50 rounded-xl transition-all group"
                               >
@@ -485,7 +533,7 @@ export function Chat({
                           const file = files[i];
                           const reader = new FileReader();
                           reader.onloadend = async () => {
-                            await onSpecialMessage(activeContactId, {
+                            await chatService.sendMessage(activeContactId, '', profile.id, profile.name, {
                               type: 'file',
                               fileName: file.name,
                               fileSize: (file.size / 1024).toFixed(1) + ' KB',
@@ -499,15 +547,16 @@ export function Chat({
                     <input 
                       type="file" 
                       accept="image/*" 
-                      capture="environment" 
+                      capture 
                       ref={cameraInputRef} 
                       className="hidden" 
+                      onClick={(e) => { (e.target as HTMLInputElement).value = ''; }}
                       onChange={async (e) => {
                         const file = e.target.files?.[0];
                         if (file && activeContactId) {
                           const reader = new FileReader();
                           reader.onloadend = async () => {
-                            await onSpecialMessage(activeContactId, {
+                            await chatService.sendMessage(activeContactId, '', profile.id, profile.name, {
                               type: 'file',
                               fileName: 'photo_' + new Date().getTime() + '.jpg',
                               fileSize: (file.size / 1024).toFixed(1) + ' KB',
@@ -522,7 +571,7 @@ export function Chat({
                       type="text" 
                       value={inputText}
                       onChange={(e) => setInputText(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                      onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend(e)}
                       placeholder={editingMessageId ? "Edit your message..." : "Type a message..."} 
                       className="w-full bg-slate-50 border-none rounded-xl md:rounded-2xl px-5 md:px-6 py-3.5 md:py-4 shadow-inner focus:ring-2 ring-primary outline-none text-sm md:text-base font-medium pr-12" 
                     />

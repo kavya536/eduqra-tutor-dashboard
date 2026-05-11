@@ -2,6 +2,8 @@ import { ShieldCheck, Upload, CheckCircle2, AlertCircle, Plus, Trash2, Landmark,
 import { motion, AnimatePresence } from 'motion/react';
 import { useState, ReactNode, useRef, ChangeEvent } from 'react';
 import { cn } from '../lib/utils';
+import { useAuthStore } from '../store/useAuthStore';
+import { authService } from '../services/authService';
 
 const Modal = ({ isOpen, onClose, title, children }: { isOpen: boolean, onClose: () => void, title: string, children: ReactNode }) => {
   if (!isOpen) return null;
@@ -27,11 +29,16 @@ const Modal = ({ isOpen, onClose, title, children }: { isOpen: boolean, onClose:
 };
 
 export function KYC() {
-  const [kycStatus, setKycStatus] = useState<'not_submitted' | 'pending' | 'verified'>('not_submitted');
+  const { profile } = useAuthStore();
+  
+  const [kycStatus, setKycStatus] = useState<'not_submitted' | 'pending' | 'verified'>(
+    profile?.status === 'approved' ? 'verified' : (profile?.status === 'pending' ? 'pending' : 'not_submitted')
+  );
+  
   const [idFile, setIdFile] = useState<string | null>(null);
-  const [idFilePreview, setIdFilePreview] = useState<string | null>(null);
+  const [idFilePreview, setIdFilePreview] = useState<string | null>(profile?.documents?.identityProof || null);
   const [photoFile, setPhotoFile] = useState<string | null>(null);
-  const [photoFilePreview, setPhotoFilePreview] = useState<string | null>(null);
+  const [photoFilePreview, setPhotoFilePreview] = useState<string | null>(profile?.documents?.profileImage || null);
   const idInputRef = useRef<HTMLInputElement>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
 
@@ -53,7 +60,7 @@ export function KYC() {
   const [withdrawStatus, setWithdrawStatus] = useState<'idle' | 'processing' | 'success' | 'failed'>('idle');
   const [balance, setBalance] = useState(1450.00);
   const [paymentMethods, setPaymentMethods] = useState([
-    { id: '1', type: 'UPI', value: 'alex@okaxis', label: 'Primary UPI', isUPI: true },
+    { id: '1', type: 'UPI', value: profile?.upiId || 'Not Set', label: 'Primary UPI', isUPI: true },
   ]);
 
   const [transactions] = useState([
@@ -64,7 +71,7 @@ export function KYC() {
 
   const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!idFile && !photoFile) {
       setError("Please upload both ID proof and profile photo.");
     } else if (!idFile) {
@@ -74,8 +81,17 @@ export function KYC() {
     } else {
       setError(null);
       setKycStatus('pending');
-      // Simulate verification process
-      setTimeout(() => setKycStatus('verified'), 3000);
+      
+      try {
+        await authService.updateProfile(profile.id, {
+          status: 'pending',
+          kyc_submitted_at: new Date().toISOString()
+        });
+      } catch (err) {
+        console.error(err);
+        setError("Failed to submit documents");
+        setKycStatus('not_submitted');
+      }
     }
   };
 

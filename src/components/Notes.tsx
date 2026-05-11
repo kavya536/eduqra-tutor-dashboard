@@ -25,9 +25,11 @@ import {
   MessageSquare
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { db } from '../firebase';
-import { collection, addDoc, serverTimestamp, deleteDoc, doc, query, where, onSnapshot, updateDoc, getDoc, getDocs } from 'firebase/firestore';
 import { cn } from '../lib/utils';
+import { notesService } from '../services/notesService';
+import { pollService } from '../services/pollService';
+import { db } from '../firebase';
+import { doc, getDoc, query, collection, where, getDocs } from 'firebase/firestore';
 
 interface Note {
   id: string;
@@ -57,13 +59,21 @@ interface Poll {
   status: 'active' | 'closed';
 }
 
-interface NotesProps {
-  notes: Note[];
-  tutorId: string;
-  tutorName?: string;
-}
+import { useAuthStore } from '../store/useAuthStore';
+import { useNotesStore } from '../store/useNotesStore';
+import { usePollStore } from '../store/usePollStore';
+import { useNotesListener } from '../hooks/useNotesListener';
 
-export function Notes({ notes, tutorId, tutorName }: NotesProps) {
+export function Notes() {
+  // Activate isolated listener for digital library and polls
+  useNotesListener();
+
+  const profile = useAuthStore(state => state.profile);
+  const notes = useNotesStore(state => state.notes);
+  const polls = usePollStore(state => state.polls);
+  
+  const tutorId = profile?.id || '';
+  const tutorName = profile?.name || 'Tutor';
   const [activeTab, setActiveTab] = useState<'notes' | 'polls'>('notes');
   const [isAdding, setIsAdding] = useState(false);
   const [isAddingPoll, setIsAddingPoll] = useState(false);
@@ -71,18 +81,6 @@ export function Notes({ notes, tutorId, tutorName }: NotesProps) {
   const [status, setStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
   
-  // Real-time Polls State
-  const [polls, setPolls] = useState<Poll[]>([]);
-  useEffect(() => {
-    if (!tutorId) return;
-    const q = query(collection(db, 'polls'), where('tutorId', '==', tutorId));
-    const unsub = onSnapshot(q, (snap) => {
-      const list = snap.docs.map(d => ({ id: d.id, ...d.data() } as Poll));
-      list.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
-      setPolls(list);
-    });
-    return unsub;
-  }, [tutorId]);
 
   const [fileLoading, setFileLoading] = useState(false);
   const [formData, setFormData] = useState({
@@ -156,32 +154,15 @@ export function Notes({ notes, tutorId, tutorName }: NotesProps) {
     setErrorMessage('');
 
     try {
-      await addDoc(collection(db, 'notes'), {
-        tutorId,
+      await notesService.addNote(tutorId, tutorName || 'Your Tutor', {
         class: formData.class.trim(),
         subject: formData.subject.trim(),
         topic: formData.topic.trim() || 'General',
         fileName: formData.file?.name,
         fileType: formData.file?.type || 'application/pdf',
-        fileData: formData.fileBase64,
-        tutorName: tutorName || 'Your Tutor',
-        createdAt: serverTimestamp()
+        fileData: formData.fileBase64
       });
 
-      // Notify Students in the targeted class
-      const studentsQuery = query(collection(db, 'students'), where('class', '==', formData.class));
-      const studentsSnap = await getDocs(studentsQuery);
-      studentsSnap.forEach(async (studentDoc) => {
-        await addDoc(collection(db, 'notifications'), {
-          userId: studentDoc.id,
-          title: 'New Study Material 📚',
-          message: `${tutorName || 'Your tutor'} shared new notes: "${formData.subject}"`,
-          type: 'booking',
-          time: serverTimestamp(),
-          read: false,
-          link: 'notes'
-        });
-      });
 
       setStatus('success');
       setFormData({ class: '', subject: '', topic: '', file: null, fileBase64: '' });
@@ -209,36 +190,15 @@ export function Notes({ notes, tutorId, tutorName }: NotesProps) {
 
     setStatus('saving');
     try {
-      await addDoc(collection(db, 'polls'), {
-        tutorId,
+      await pollService.createPoll(tutorId, tutorName || 'Your Tutor', {
         question: pollFormData.question,
         targetClass: pollFormData.targetClass.trim() || 'All',
         topic: pollFormData.topic.trim() || 'General',
         options: cleanOptions.map(o => ({ text: o, votes: [] })),
         allowMultiple: pollFormData.allowMultiple,
-        status: 'active',
-        tutorName: tutorName || 'Your Tutor',
-        createdAt: serverTimestamp()
+        status: 'active'
       });
 
-      // Notify Students in the targeted class
-      const pollTargetClass = pollFormData.targetClass.trim() || 'All';
-      const sQuery = pollTargetClass === 'All' 
-        ? query(collection(db, 'students'))
-        : query(collection(db, 'students'), where('class', '==', pollTargetClass));
-      
-      const sSnap = await getDocs(sQuery);
-      sSnap.forEach(async (sDoc) => {
-        await addDoc(collection(db, 'notifications'), {
-          userId: sDoc.id,
-          title: 'New Interactive Poll 📊',
-          message: `${tutorName || 'Your tutor'} launched a new poll for your class.`,
-          type: 'update',
-          time: serverTimestamp(),
-          read: false,
-          link: 'notes'
-        });
-      });
       setStatus('success');
       setPollFormData({ question: '', targetClass: '', topic: '', options: ['', ''], allowMultiple: false });
       setTimeout(() => {
@@ -254,7 +214,7 @@ export function Notes({ notes, tutorId, tutorName }: NotesProps) {
   const handleDelete = async (noteId: string) => {
     if (!confirm("Are you sure you want to delete this note?")) return;
     try {
-      await deleteDoc(doc(db, 'notes', noteId));
+      await notesService.deleteNote(noteId);
     } catch (error) {
       console.error("Error deleting note:", error);
     }
@@ -263,7 +223,7 @@ export function Notes({ notes, tutorId, tutorName }: NotesProps) {
   const handleDeletePoll = async (pollId: string) => {
     if (!confirm("Delete this poll?")) return;
     try {
-      await deleteDoc(doc(db, 'polls', pollId));
+      await pollService.deletePoll(pollId);
     } catch (err) {
       console.error(err);
     }
@@ -273,34 +233,8 @@ export function Notes({ notes, tutorId, tutorName }: NotesProps) {
     const poll = polls.find(p => p.id === pollId);
     if (!poll || !tutorId) return;
 
-    const newOptions = [...poll.options.map(o => ({ ...o, votes: [...o.votes] }))];
-    const voterId = tutorId;
-
-    const isAlreadyVoted = newOptions[optionIdx].votes.includes(voterId);
-    
-    // Calculate total selections for this user across all options
-    const userSelections = newOptions.filter(o => o.votes.includes(voterId)).length;
-
-    if (poll.allowMultiple) {
-      if (isAlreadyVoted) {
-        // PER USER REQUEST: Don't allow unselecting if it's their only selection
-        if (userSelections <= 1) return; 
-        newOptions[optionIdx].votes = newOptions[optionIdx].votes.filter(id => id !== voterId);
-      } else {
-        newOptions[optionIdx].votes.push(voterId);
-      }
-    } else {
-      // Single Choice Logic: clicking the same one again shouldn't deselect (enforce at least one)
-      if (isAlreadyVoted) return; 
-
-      newOptions.forEach(opt => {
-        opt.votes = opt.votes.filter(id => id !== voterId);
-      });
-      newOptions[optionIdx].votes.push(voterId);
-    }
-
     try {
-      await updateDoc(doc(db, 'polls', pollId), { options: newOptions });
+      await pollService.vote(pollId, tutorId, optionIdx, poll);
     } catch (err) {
       console.error("Voting error:", err);
     }
