@@ -5,7 +5,7 @@ import { motion } from 'motion/react';
 import { useAuthStore } from '../store/useAuthStore';
 import { authService } from '../services/authService';
 
-export function Settings() {
+export default function Settings() {
   const [status, setStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
   const [pwdStatus, setPwdStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
@@ -91,7 +91,14 @@ export function Settings() {
       setTimeout(() => setPwdStatus('idle'), 3000);
     } catch (e: any) {
       console.error('Password update failed:', e);
-      const msg = e.code === 'auth/wrong-password' ? "Current password is incorrect" : (e.message || "Failed to update password");
+      let msg = "Failed to update password. Please try again.";
+      if (e.code === 'auth/wrong-password' || e.code === 'auth/invalid-credential') {
+        msg = "❌ Current password is incorrect. Please check and try again.";
+      } else if (e.code === 'auth/too-many-requests') {
+        msg = "⚠️ Too many attempts. Please try again later.";
+      } else if (e.code === 'auth/network-request-failed') {
+        msg = "🌐 Network error. Please check your internet connection.";
+      }
       setErrorMessage(msg);
       setPwdStatus('error');
       setTimeout(() => {
@@ -105,7 +112,7 @@ export function Settings() {
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <h2 className="text-2xl font-black text-on-surface tracking-tight">Settings</h2>
       
-      <div className="bg-white p-8 rounded-3xl atelier-card-shadow space-y-8 max-w-3xl border border-surface-variant">
+      <div className="bg-white p-8 rounded-3xl atelier-card-shadow space-y-8 border border-surface-variant">
         {/* Notification Section */}
         <div className="space-y-6">
           <div className="flex items-center gap-3 border-b border-slate-100 pb-4">

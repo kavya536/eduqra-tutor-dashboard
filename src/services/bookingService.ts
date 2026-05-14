@@ -26,10 +26,24 @@ export const bookingService = {
           ...data,
           name: data.studentName || data.name || 'Student'
         } as Booking;
-      });
+      }).filter(b => b.status !== 'unpaid');
       
-      // Sort locally by date descending
-      bookingList.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      const getSortMs = (item: any) => {
+         if (item.date) {
+            const timeStr = item.time || '00:00';
+            const d = new Date(`${item.date} ${timeStr}`);
+            if (!isNaN(d.getTime())) return d.getTime();
+            const d2 = new Date(item.date);
+            if (!isNaN(d2.getTime())) return d2.getTime();
+         }
+         if (item.createdAt?.toMillis) return item.createdAt.toMillis();
+         if (item.createdAt?.seconds) return item.createdAt.seconds * 1000;
+         if (item.timestamp?.toMillis) return item.timestamp.toMillis();
+         if (item.timestamp?.seconds) return item.timestamp.seconds * 1000;
+         return 0;
+      };
+      
+      bookingList.sort((a, b) => getSortMs(b) - getSortMs(a));
       callback(bookingList);
     });
   },
@@ -49,13 +63,15 @@ export const bookingService = {
           bookingData.subject,
           bookingData.date,
           bookingData.time,
-          Number(bookingData.amount)
+          Number(bookingData.amount),
+          bookingData.studentId
         );
       } else if (status === 'cancelled') {
         await notificationService.notifyBookingCancelled(
           bookingData.studentEmail,
           tutorName,
-          bookingData.subject
+          bookingData.subject,
+          bookingData.studentId
         );
       }
     }
@@ -64,11 +80,10 @@ export const bookingService = {
   /**
    * Reschedule a booking and notify student
    */
-  async reschedule(id: string, date: string, time: string, tutorName: string, bookingData: Booking) {
+  async reschedule(id: string, date: string, time: string, tutorName: string, bookingData: Booking, scope?: 'one-day' | 'full-course') {
     const bookingRef = doc(db, 'bookings', id);
-    await updateDoc(bookingRef, {
-      date,
-      time,
+    
+    const updates: any = {
       status: 'confirmed',
       tutorJoined: false,
       studentJoined: false,
@@ -76,7 +91,19 @@ export const bookingService = {
       topic: '',
       durationConducted: 0,
       completedAt: null
-    });
+    };
+
+    if (scope === 'full-course') {
+      updates.date = date;
+      updates.time = time;
+    } else {
+      // One-day override
+      const rescheduledDays = { ...(bookingData.rescheduledDays || {}) };
+      rescheduledDays[date] = time;
+      updates.rescheduledDays = rescheduledDays;
+    }
+
+    await updateDoc(bookingRef, updates);
 
     if (bookingData.studentEmail) {
       await notificationService.notifyBookingRescheduled(
@@ -84,7 +111,8 @@ export const bookingService = {
         tutorName,
         bookingData.subject,
         date,
-        time
+        time,
+        bookingData.studentId
       );
     }
   },
@@ -110,6 +138,18 @@ export const bookingService = {
       time, 
       rescheduleReason: reason,
       status: 'pending', // Reset status for tutor to re-confirm
+      updatedAt: serverTimestamp()
+    });
+  },
+
+  /**
+   * Update attendance status
+   */
+  async updateAttendance(id: string, attendanceStatus: string, status: string) {
+    const bookingRef = doc(db, 'bookings', id);
+    return updateDoc(bookingRef, {
+      attendance_status: attendanceStatus,
+      status: status,
       updatedAt: serverTimestamp()
     });
   }

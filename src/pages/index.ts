@@ -5,7 +5,7 @@ import { Availability } from '../components/Availability';
 import { Pricing } from '../components/Pricing';
 import { Reviews } from '../components/Reviews';
 import { KYC } from '../components/KYC';
-import { Settings } from '../components/Settings';
+import Settings from '../components/Settings';
 import { Profile } from '../components/Profile';
 import { Registration } from '../components/Registration';
 import { Login } from '../components/Login';

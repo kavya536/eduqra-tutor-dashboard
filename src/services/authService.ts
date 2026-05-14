@@ -173,6 +173,24 @@ export const authService = {
   },
 
   /**
+   * Update KYC documents via backend API
+   */
+  async updateKYC(formData: FormData) {
+    const hostname = window.location.hostname;
+    const response = await fetch(`http://${hostname}:5001/api/update-kyc`, {
+      method: 'POST',
+      body: formData
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'KYC update failed');
+    }
+    
+    return response.json();
+  },
+
+  /**
    * Update tutor availability slots
    */
   async updateAvailability(uid: string, slots: AvailabilitySlot[]) {

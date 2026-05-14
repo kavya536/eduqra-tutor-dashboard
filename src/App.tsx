@@ -902,9 +902,9 @@ export default function App() {
     setShowLogoutConfirm(false);
   };
 
-
   // --- CENTRALIZED CONTENT ROUTER: STATUS-FIRST ---
   const renderAppContent = () => {
+    // 1. HARD LOADING STATE (Firebase Auth Initialization)
     if (loading) {
       return (
         <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 text-center">
@@ -914,82 +914,35 @@ export default function App() {
       );
     }
 
-    // 0. ACCOUNT BLOCK CHECK (System Level Enforcement)
+    // 2. BLOCKED STATUS (Immediate Gate)
     if (profile?.status === 'blocked') {
       return (
-        <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="max-w-md w-full bg-white rounded-[2.5rem] p-10 shadow-2xl text-center border border-slate-100"
-          >
-            <div className="w-20 h-20 bg-rose-50 rounded-full flex items-center justify-center mx-auto mb-6">
-              <XCircle size={40} className="text-rose-500" />
-            </div>
-            <h2 className="text-3xl font-black text-slate-800 tracking-tight leading-tight mb-4">Account Suspended</h2>
-            <p className="text-slate-500 font-medium leading-relaxed mb-8">
-              Your tutor account has been suspended by the Eduqra administration. Access to the dashboard is currently restricted.
-            </p>
-            <div className="space-y-4">
-               <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Tutor ID</p>
-                 <p className="text-xs font-bold text-slate-600 font-mono">{profile.id}</p>
-               </div>
-               <div className="p-4 bg-rose-50 rounded-2xl border border-rose-100 italic">
-                 <p className="text-sm font-bold text-rose-600">
-                   "We're sorry, but you are currently unable to access this site."
-                 </p>
-               </div>
-               <button 
-                onClick={handleLogout}
-                className="w-full bg-slate-900 text-white font-black py-5 rounded-2xl hover:scale-[1.02] active:scale-95 transition-all uppercase text-xs tracking-widest flex items-center justify-center gap-3 shadow-xl"
-              >
-                <LogOut size={16} /> Sign Out & Support
-              </button>
-            </div>
-          </motion.div>
+        <div className="min-h-screen bg-rose-50 flex flex-col items-center justify-center p-6 text-center">
+          <div className="w-20 h-20 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mb-6 shadow-xl">
+            <XCircle size={40} />
+          </div>
+          <h1 className="text-3xl font-black text-rose-900 mb-2">Account Restricted</h1>
+          <p className="text-rose-700 font-bold max-w-md mb-8">This tutor account has been restricted by the administration. If you believe this is an error, please contact support.</p>
+          <button onClick={handleLogout} className="btn-primary bg-rose-600 hover:bg-rose-700">Return to Login</button>
         </div>
       );
     }
 
-    // 1. THE RE-APPLY BRIDGE (Highest Priority Override)
-    if (isReapplying) {
+    // 3. RE-APPLYING / REGISTRATION OVERRIDE
+    if (isReapplying || view === 'register') {
       return (
         <Registration 
-          currentUser={{ ...user, ...profile }} 
-          onComplete={() => { 
-            setIsReapplying(false); 
-            setView('app'); 
-          }} 
-          onSwitchToLogin={handleLogout} 
-          isCompletingProfile={!!user} 
-          isDirectReapply={!user}
-          initialEmail={prefilledEmail}
-          notice="We found your account! Please complete the registration details below to activate your tutor profile."
+          onComplete={() => { setIsReapplying(false); setView('app'); }} 
+          onSwitchToLogin={() => { setIsReapplying(false); setView('login'); }}
+          isDirectReapply={isReapplying}
+          currentUser={user}
+          initialEmail={prefilledEmail || user?.email || ''}
         />
       );
     }
 
-    // 2. UNAUTHENTICATED
-    if (!user) {
-      if (view === 'register') {
-        return (
-          <Registration 
-            onComplete={() => {
-              setIsReapplying(false);
-              setView('app');
-            }} 
-            onSwitchToLogin={() => {
-              setIsReapplying(false);
-              setPrefilledEmail('');
-              setView('login');
-            }} 
-            isDirectReapply={isReapplying}
-            initialEmail={prefilledEmail}
-            notice={prefilledEmail ? "You are not registered. Try to registration now." : null}
-          />
-        );
-      }
+    // 4. UNAUTHENTICATED STATE
+    if (!user || view === 'login') {
       return (
         <Login 
           onLogin={() => setView('app')} 
@@ -997,17 +950,17 @@ export default function App() {
             setIsReapplying(false);
             setPrefilledEmail('');
             setView('register');
-          }} 
-          onReapply={() => {
+          }}
+          onReapply={(email) => {
             setIsReapplying(true);
-            setPrefilledEmail('');
+            setPrefilledEmail(email || '');
             setView('register');
           }}
         />
       );
     }
 
-    // 3. AUTHENTICATED BUT PROFILE STILL FETCHING
+    // 5. PROFILE FETCHING STATE
     if (profileLoading) {
       return (
         <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 text-center">
@@ -1017,62 +970,52 @@ export default function App() {
       );
     }
 
-    // 4. AUTHENTICATED BUT NO PROFILE FOUND (True Registration Incomplete)
-    if (!profile || isReapplying) {
-      if (view === 'app' && !isReapplying) {
-        // We expected a profile but didn't find one - show a small wait state before forcing registration
+    // 6. MISSING PROFILE FALLBACK
+    if (!profile) {
+      if (view === 'app') {
         return (
-          <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 text-center">
-            <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mb-6 mx-auto"></div>
-            <p className="label-caps opacity-40 animate-pulse tracking-widest font-black uppercase text-xs">Waiting for database synchronization...</p>
-            <button 
-              onClick={() => {
-                setView('register');
-              }} 
-              className="mt-8 text-primary/80 hover:text-primary underline text-[10px] font-black uppercase tracking-widest transition-colors"
-            >
-              Taking too long? Return to Registration
-            </button>
-          </div>
+          <Registration 
+            onComplete={() => setView('app')} 
+            onSwitchToLogin={() => setView('login')}
+            isCompletingProfile={true}
+            currentUser={user}
+          />
         );
       }
       return (
-        <Registration 
-          currentUser={user} 
-          onComplete={() => {
-            setIsReapplying(false);
-            setView('app');
-          }} 
-          onSwitchToLogin={handleLogout} 
-          isCompletingProfile={!isReapplying} 
-          isDirectReapply={isReapplying}
-          notice={isReapplying ? "You are in Re-application mode. Please correct your details and re-submit for review." : "You are not registered. Please complete your registration now."} 
+        <Login 
+          onLogin={() => setView('app')} 
+          onSwitchToRegister={() => setView('register')}
+          onReapply={() => {
+            setIsReapplying(true);
+            setView('register');
+          }}
         />
       );
     }
 
-    // 4. STATUS GATE: PENDING / REVIEW (Highest priority for new accounts)
-    if (profile.status === 'pending' || (profile.status !== 'approved' && profile.status !== 'rejected' && profile.status !== 'blocked')) {
+    // 7. STATUS GATES
+    if (profile.status === 'pending' || (profile.status !== 'approved' && profile.status !== 'rejected')) {
       return <StatusGate status="pending" profile={profile} onLogout={handleLogout} />;
     }
 
-    // 5. STATUS GATE: REJECTED (Show feedback immediately)
     if (profile.status === 'rejected') {
       return <StatusGate status="rejected" profile={profile} onLogout={handleLogout} onReapply={handleReapply} />;
     }
 
-    // 6. STATUS GATE: APPROVED BUT NOT ACTIVATED (Magic Link Activation Flow)
     if (profile.status === 'approved' && profile.activated === false) {
       return <StatusGate status="verify" user={user} onLogout={handleLogout} onResendVerification={handleResendVerification} />;
     }
 
-    // 6. STATUS GATE: APPROVED (THE ONLY WAY TO REACH THE DASHBOARD)
+    // 8. APPROVED (DASHBOARD)
     if (profile.status === 'approved') {
       return (
-        <>
-          <AppRoutes />
+        <div className="flex min-h-screen bg-[#F8FAFC] w-full">
+          <div className="flex-1">
+            <AppRoutes />
+          </div>
 
-          {/* Live Class Overlay Integrated into Dashboard Access */}
+          {/* Live Class Overlay */}
           <AnimatePresence>
             {currentPage === 'live-class' && (
               <motion.div 
@@ -1081,18 +1024,18 @@ export default function App() {
                 exit={{ opacity: 0 }}
                 className="fixed inset-0 z-[200] bg-[#0A0A0B] text-white flex flex-col font-sans overflow-hidden"
               >
-                {/* Header Bar */}
+                {/* Live Class Header */}
                 <div className="h-20 px-6 flex items-center justify-between border-b border-white/5 bg-[#121214]/80 backdrop-blur-md">
                   <div className="flex items-center gap-4">
                     <div className="w-10 h-10 bg-primary/20 rounded-xl flex items-center justify-center">
                       <GraduationCap className="text-primary" size={20} />
                     </div>
                     <div>
-                      <h2 className="text-sm font-bold tracking-tight">Advanced Calculus - Student Session</h2>
+                      <h2 className="text-sm font-bold tracking-tight">Live Session</h2>
                       <div className="flex items-center gap-2 mt-0.5">
-                        <span className={`w-2 h-2 rounded-full ${sessionStatus === 'live' ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]' : sessionStatus === 'connecting' ? 'bg-amber-500 animate-pulse' : 'bg-white/20'}`}></span>
+                        <span className={`w-2 h-2 rounded-full ${sessionStatus === 'live' ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]' : 'bg-white/20'}`}></span>
                         <span className="text-[10px] font-bold uppercase tracking-widest text-white/40">
-                          {sessionStatus === 'live' ? 'Live Session' : sessionStatus === 'connecting' ? 'Connecting...' : 'Waiting'}
+                          {sessionStatus === 'live' ? 'Live' : 'Connecting...'}
                         </span>
                       </div>
                     </div>
@@ -1125,373 +1068,178 @@ export default function App() {
                 </div>
 
                 <div className="flex-1 flex relative overflow-hidden">
-                   <div className={`flex-1 p-4 md:p-6 flex flex-col items-center justify-center gap-4 md:gap-6 transition-all duration-500 ${isLiveChatOpen ? 'md:pr-[400px]' : ''}`}>
-                      
-                      {/* Video Grid */}
-                      <div className="w-full h-full max-w-6xl grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 items-stretch">
-                        {/* Self Participant (Tutor) */}
-                        <div className="relative bg-[#1A1A1E] rounded-[1.5rem] md:rounded-[2.5rem] overflow-hidden shadow-2xl border border-white/5 flex items-center justify-center">
-                          {isCamOn ? (
-                            <div className="w-full h-full relative group">
-                              <video 
-                                ref={localVideoRef} 
-                                autoPlay 
-                                playsInline 
-                                muted 
-                                className="w-full h-full object-cover grayscale-[0.2]"
-                              />
-                              <div className="absolute inset-x-0 bottom-0 p-4 md:p-6 bg-gradient-to-t from-black/80 via-black/40 to-transparent">
-                                <p className="text-xs md:text-sm font-bold text-white/90">{profile.name} (You - Tutor)</p>
-                              </div>
+                  <div className={`flex-1 p-4 md:p-6 flex flex-col items-center justify-center gap-4 md:gap-6 transition-all duration-500 ${isLiveChatOpen ? 'md:pr-[400px]' : ''}`}>
+                    <div className="w-full h-full max-w-6xl grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 items-stretch">
+                      {/* Self Participant */}
+                      <div className="relative bg-[#1A1A1E] rounded-[1.5rem] md:rounded-[2.5rem] overflow-hidden shadow-2xl border border-white/5 flex items-center justify-center">
+                        {isCamOn ? (
+                          <div className="w-full h-full relative group">
+                            <video ref={localVideoRef} autoPlay playsInline muted className="w-full h-full object-cover grayscale-[0.2]" />
+                            <div className="absolute inset-x-0 bottom-0 p-4 md:p-6 bg-gradient-to-t from-black/80 via-black/40 to-transparent">
+                              <p className="text-xs md:text-sm font-bold text-white/90">{profile.name} (You)</p>
                             </div>
-                          ) : (
-                            <div className="text-center space-y-4">
-                              <div className="w-16 h-16 md:w-20 md:h-20 bg-white/5 rounded-full flex items-center justify-center mx-auto border border-white/5">
-                                <User size={32} className="text-white/20" />
-                              </div>
-                              <p className="text-[10px] font-bold uppercase tracking-widest text-white/20">Camera Off</p>
-                            </div>
-                          )}
-                          {!isMicOn && (
-                            <div className="absolute top-4 right-4 md:top-6 md:right-6 p-2 bg-rose-500 text-white rounded-xl shadow-lg ring-4 ring-rose-500/20">
-                              <Mic size={16} />
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Remote Participant(s) Grid */}
-                        <div className={cn(
-                          "w-full h-full max-w-6xl grid gap-4 md:gap-6 items-stretch",
-                          remoteStreams.length <= 1 ? "grid-cols-1 md:grid-cols-2" : "grid-cols-2 md:grid-cols-3"
-                        )}>
-                          {remoteStreams.map((rs) => (
-                            <div key={rs.socketId} className="relative bg-[#1A1A1E] rounded-[1.5rem] md:rounded-[2.5rem] overflow-hidden shadow-2xl border border-white/5 flex items-center justify-center group">
-                               <video 
-                                  ref={(el) => { if (el) el.srcObject = rs.stream; }}
-                                  autoPlay 
-                                  playsInline 
-                                  className="w-full h-full object-cover"
-                                />
-                                <div className="absolute inset-x-0 bottom-0 p-4 md:p-6 bg-gradient-to-t from-black/80 via-black/40 to-transparent">
-                                  <p className="text-xs md:text-sm font-bold text-white/90">{rs.userName || 'Student'}</p>
-                                </div>
-                            </div>
-                          ))}
-
-                          {remoteStreams.length === 0 && (
-                            <div className="relative bg-[#1A1A1E] rounded-[1.5rem] md:rounded-[2.5rem] overflow-hidden shadow-2xl border border-white/5 flex items-center justify-center group p-8">
-                               <div className="text-center space-y-6">
-                                  <div className="w-12 h-12 border-4 border-white/5 border-t-primary rounded-full animate-spin mx-auto"></div>
-                                  <p className="text-[10px] font-bold uppercase tracking-widest text-white/20">Waiting for Students...</p>
-                                </div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Tutor Command Bar */}
-                      <div className="flex items-center gap-2 md:gap-4 bg-[#121214]/60 backdrop-blur-2xl p-2 md:p-2.5 px-4 md:px-6 rounded-[2.5rem] border border-white/10 shadow-2xl z-20">
-                        <button 
-                          onClick={() => setIsMicOn(!isMicOn)}
-                          className={`w-10 h-10 md:w-14 md:h-14 rounded-full flex items-center justify-center transition-all ${isMicOn ? 'bg-white/5 text-white hover:bg-white/10' : 'bg-rose-500 text-white shadow-lg shadow-rose-500/20'}`}
-                        >
-                          {isMicOn ? <Mic size={20} /> : <div className="relative"><Mic size={20} /><div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-6 h-0.5 bg-white rotate-45" /></div>}
-                        </button>
-                        
-                        <button 
-                          onClick={() => setIsCamOn(!isCamOn)}
-                          className={`w-10 h-10 md:w-14 md:h-14 rounded-full flex items-center justify-center transition-all ${isCamOn ? 'bg-white/5 text-white hover:bg-white/10' : 'bg-white text-black shadow-lg'}`}
-                        >
-                          {isCamOn ? <Camera size={20} /> : <div className="relative"><Camera size={20} /><div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-6 h-0.5 bg-black rotate-45" /></div>}
-                        </button>
-
-                        <button 
-                          onClick={handleScreenShare}
-                          className={`w-10 h-10 md:w-14 md:h-14 rounded-full flex items-center justify-center transition-all ${isScreenSharing ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'bg-white/5 text-white hover:bg-white/10'}`}
-                          title="Share Screen"
-                        >
-                          <Monitor size={20} />
-                        </button>
-
-                        <div className="w-px h-8 bg-white/10 mx-1"></div>
-
-
-                        <div className="relative group">
-                          <button className="w-10 h-10 md:w-14 md:h-14 rounded-full bg-white/5 text-white hover:bg-white/10 flex items-center justify-center transition-all">
-                            <Smile size={20} />
-                          </button>
-                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-4 bg-[#1A1A1E]/90 backdrop-blur-xl border border-white/10 p-2 rounded-2xl hidden group-hover:flex gap-2 shadow-2xl">
-                             {['👍', '❤️', '👏', '💡', '🔥', '🎉'].map(emoji => (
-                               <button 
-                                 key={emoji}
-                                 onClick={() => {
-                                   if (activeMeetingId) {
-                                     liveClassService.sendReaction(activeMeetingId, profile.name, emoji);
-                                   }
-                                 }}
-                                 className="hover:scale-125 transition-transform p-1 text-xl"
-                               >
-                                 {emoji}
-                               </button>
-                             ))}
                           </div>
-                        </div>
-
-                        <button 
-                          onClick={() => setIsLiveChatOpen(!isLiveChatOpen)}
-                          className={`w-10 h-10 md:w-14 md:h-14 rounded-full flex items-center justify-center transition-all ${isLiveChatOpen ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'bg-white/5 text-white hover:bg-white/10'}`}
-                        >
-                          <MessageSquare size={20} />
-                        </button>
-
-                        <div className="w-px h-8 bg-white/10 mx-1"></div>
-
-                        <button 
-                          onClick={endSession}
-                          className="w-10 h-10 md:w-14 md:h-14 rounded-full bg-rose-500 text-white flex items-center justify-center hover:scale-110 active:scale-95 transition-all shadow-xl shadow-rose-500/40"
-                          title="End Session for All"
-                        >
-                          <LogOut size={20} />
-                        </button>
+                        ) : (
+                          <div className="text-center space-y-4">
+                            <div className="w-16 h-16 md:w-20 md:h-20 bg-white/5 rounded-full flex items-center justify-center mx-auto border border-white/5">
+                              <User size={32} className="text-white/20" />
+                            </div>
+                            <p className="text-[10px] font-bold uppercase tracking-widest text-white/20">Camera Off</p>
+                          </div>
+                        )}
+                        {!isMicOn && (
+                          <div className="absolute top-4 right-4 md:top-6 md:right-6 p-2 bg-rose-500 text-white rounded-xl shadow-lg ring-4 ring-rose-500/20">
+                            <MicOff size={16} />
+                          </div>
+                        )}
                       </div>
-                   </div>
 
-                   {/* Chat Panel */}
-                   <AnimatePresence>
+                      {/* Remote Participants */}
+                      <div className={cn("grid gap-4", remoteStreams.length <= 1 ? "grid-cols-1" : "grid-cols-2")}>
+                        {remoteStreams.map((rs) => (
+                          <div key={rs.socketId} className="relative bg-[#1A1A1E] rounded-3xl overflow-hidden border border-white/5">
+                            <video ref={(el) => { if (el) el.srcObject = rs.stream; }} autoPlay playsInline className="w-full h-full object-cover" />
+                            <div className="absolute inset-x-0 bottom-0 p-4 bg-gradient-to-t from-black/80 to-transparent">
+                              <p className="text-xs font-bold text-white">{rs.userName || 'Student'}</p>
+                            </div>
+                          </div>
+                        ))}
+                        {remoteStreams.length === 0 && (
+                          <div className="relative bg-[#1A1A1E] rounded-3xl flex items-center justify-center border border-white/5">
+                            <p className="text-[10px] font-bold uppercase tracking-widest text-white/20">Waiting for Students...</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Controls */}
+                    <div className="flex items-center gap-4 bg-[#121214]/60 backdrop-blur-2xl p-4 rounded-[2.5rem] border border-white/10 shadow-2xl z-20">
+                      <button onClick={() => setIsMicOn(!isMicOn)} className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${isMicOn ? 'bg-white/5 text-white' : 'bg-rose-500 text-white shadow-lg shadow-rose-500/20'}`}>
+                        {isMicOn ? <Mic size={20} /> : <MicOff size={20} />}
+                      </button>
+                      <button onClick={() => setIsCamOn(!isCamOn)} className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${isCamOn ? 'bg-white/5 text-white' : 'bg-white text-black shadow-lg'}`}>
+                        <Camera size={20} />
+                      </button>
+                      <button onClick={handleScreenShare} className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${isScreenSharing ? 'bg-primary text-white' : 'bg-white/5 text-white'}`}>
+                        <Monitor size={20} />
+                      </button>
+                      <button onClick={() => setIsLiveChatOpen(!isLiveChatOpen)} className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${isLiveChatOpen ? 'bg-primary text-white' : 'bg-white/5 text-white'}`}>
+                        <MessageSquare size={20} />
+                      </button>
+                      <div className="w-px h-8 bg-white/10 mx-2" />
+                      <button onClick={endSession} className="w-12 h-12 rounded-full bg-rose-500 text-white flex items-center justify-center hover:scale-110 transition-all shadow-xl shadow-rose-500/40">
+                        <LogOut size={20} />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Live Chat Panel */}
+                  <AnimatePresence>
                     {isLiveChatOpen && (
-                      <motion.div 
-                        initial={{ x: '100%' }}
-                        animate={{ x: 0 }}
-                        exit={{ x: '100%' }}
-                        className="fixed right-0 top-0 bottom-0 md:relative w-full max-w-[400px] bg-[#121214] border-l border-white/5 flex flex-col shadow-2xl z-[210]"
-                      >
-                        <div className="p-6 md:p-8 border-b border-white/5 flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <div className="p-2 bg-primary/10 rounded-lg">
-                              <MessageSquare className="text-primary" size={18} />
-                            </div>
-                            <h3 className="font-bold text-sm tracking-tight text-white">Class Chat</h3>
-                          </div>
-                          <button onClick={() => setIsLiveChatOpen(false)} className="text-white/20 hover:text-white transition-colors">
-                            <X size={20} />
-                          </button>
+                      <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} className="absolute right-0 top-0 bottom-0 w-[400px] bg-[#121214] border-l border-white/5 flex flex-col shadow-2xl z-[210]">
+                        <div className="p-6 border-b border-white/5 flex items-center justify-between">
+                          <h3 className="font-bold text-white">Class Chat</h3>
+                          <button onClick={() => setIsLiveChatOpen(false)} className="text-white/20 hover:text-white"><X size={20} /></button>
                         </div>
-
-                        <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 custom-scrollbar">
+                        <div className="flex-1 overflow-y-auto p-6 space-y-4">
                           {liveMessages.map(msg => (
                             <div key={msg.id} className="flex flex-col gap-1 items-end">
-                              <div className="bg-primary px-4 py-2.5 rounded-2xl rounded-tr-none text-sm font-semibold max-w-[85%] text-white">
-                                {msg.text}
-                              </div>
-                              <span className="text-[9px] font-bold text-white/20 uppercase tracking-tighter">{msg.time}</span>
+                              <div className="bg-primary px-4 py-2 rounded-2xl rounded-tr-none text-sm text-white">{msg.text}</div>
+                              <span className="text-[9px] text-white/20 uppercase">{msg.time}</span>
                             </div>
                           ))}
                         </div>
-
-                        <div className="p-4 md:p-6 bg-[#0A0A0B] border-t border-white/5">
-                          <div className="relative flex items-center">
-                            <input 
-                              placeholder="Type a message..."
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                  handleSendLiveMessage(e.currentTarget.value);
-                                  e.currentTarget.value = '';
-                                }
-                              }}
-                              className="w-full bg-white/5 border border-white/5 rounded-2xl py-4 pl-6 pr-14 outline-none focus:bg-white/10 focus:border-primary/40 transition-all font-semibold text-sm placeholder:text-white/20 text-white"
-                            />
-                            <button className="absolute right-3 p-2 bg-primary rounded-xl text-white shadow-lg shadow-primary/20">
-                              <Send size={18} />
-                            </button>
-                          </div>
+                        <div className="p-6 bg-[#0A0A0B] border-t border-white/5">
+                          <input 
+                            placeholder="Type a message..." 
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                handleSendLiveMessage(e.currentTarget.value);
+                                e.currentTarget.value = '';
+                              }
+                            }}
+                            className="w-full bg-white/5 border border-white/5 rounded-2xl py-4 px-6 outline-none text-white text-sm"
+                          />
                         </div>
                       </motion.div>
                     )}
-                   </AnimatePresence>
+                  </AnimatePresence>
                 </div>
               </motion.div>
             )}
           </AnimatePresence>
 
-          {/* Topic entry modal for ending session */}
+          {/* Topic entry modal */}
           <AnimatePresence>
             {showTopicModal && (
               <div className="fixed inset-0 z-[300] bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-                <motion.div 
-                  initial={{ opacity: 0, scale: 0.9, y: 20 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  className="bg-white rounded-[2.5rem] w-full max-w-md p-8 md:p-10 shadow-2xl"
-                >
-                  <div className="text-center mb-8">
-                    <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <span className="text-primary text-2xl font-bold">📖</span>
-                    </div>
-                    <h3 className="text-2xl font-serif font-bold italic text-slate-800">Class Conducted</h3>
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-2">What did you cover today?</p>
-                  </div>
-                  
+                <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="bg-white rounded-[2.5rem] w-full max-w-md p-10 shadow-2xl">
+                  <h3 className="text-2xl font-bold text-slate-800 text-center mb-8">Class Conducted</h3>
                   <div className="space-y-6">
-                    <div>
-                      <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 ml-2">Class Topic</label>
-                      <input 
-                        type="text" 
-                        autoFocus
-                        placeholder="e.g. Introduction to Derivatives" 
-                        className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4 text-slate-800 font-bold focus:ring-2 ring-primary/20 outline-none transition-all"
-                        value={sessionTopic}
-                        onChange={(e) => setSessionTopic(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            if (!sessionTopic.trim()) return;
-                            finalizeSession('complete');
-                          }
-                        }}
-                      />
-                    </div>
-                    
-                    {/* End Class Choice Modal */}
-                    <AnimatePresence>
-                      {showEndChoiceModal && (
-                        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6">
-                          <motion.div 
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
-                            onClick={() => setShowEndChoiceModal(false)}
-                          />
-                          <motion.div 
-                            initial={{ opacity: 0, scale: 0.9, y: 20 }}
-                            animate={{ opacity: 1, scale: 1, y: 0 }}
-                            exit={{ opacity: 0, scale: 0.9, y: 20 }}
-                            className="relative w-full max-w-md bg-white rounded-[2.5rem] p-10 shadow-2xl border border-slate-100 text-center"
-                          >
-                            <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-6">
-                              <LogOut size={32} className="text-primary" />
-                            </div>
-                            <h2 className="text-2xl font-black text-slate-800 tracking-tight mb-2">Finish Session?</h2>
-                            <p className="text-slate-500 font-medium mb-8 text-sm">How would you like to handle this class?</p>
-                            
-                            <div className="space-y-4">
-                              <button 
-                                onClick={() => finalizeSession('complete')}
-                                className="w-full bg-emerald-500 text-white font-black py-4 rounded-2xl hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-3 shadow-lg shadow-emerald-500/20"
-                              >
-                                <Check size={18} /> Class Conducted (Continue)
-                              </button>
-                              <button 
-                                onClick={() => finalizeSession('reschedule')}
-                                className="w-full bg-slate-900 text-white font-black py-4 rounded-2xl hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-3 shadow-xl"
-                              >
-                                <Clock size={18} /> Need to Reschedule
-                              </button>
-                              <button 
-                                onClick={() => setShowEndChoiceModal(false)}
-                                className="w-full text-slate-400 font-bold text-xs uppercase tracking-widest py-2 hover:text-slate-600 transition-colors"
-                              >
-                                Go Back
-                              </button>
-                            </div>
-                          </motion.div>
-                        </div>
-                      )}
-                    </AnimatePresence>
-
-                    <button 
-                      onClick={() => {
-                        if (!sessionTopic.trim()) return;
-                        finalizeSession('complete');
-                      }}
-                      className={cn(
-                        "w-full text-white font-black py-5 rounded-2xl shadow-xl transition-all uppercase text-xs tracking-widest",
-                        sessionTopic.trim() ? "bg-primary hover:scale-[1.02] active:scale-95 shadow-primary/20" : "bg-slate-300 cursor-not-allowed"
-                      )}
-                    >
-                      Complete Session & Save
-                    </button>
-                    
-                    <p className="text-center text-[10px] text-slate-400 font-bold leading-relaxed px-4">
-                      Completing this will move the session to history and notify the student.
-                    </p>
+                    <input 
+                      autoFocus 
+                      placeholder="e.g. Introduction to Derivatives" 
+                      className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-4 text-slate-800 font-bold outline-none" 
+                      value={sessionTopic} 
+                      onChange={(e) => setSessionTopic(e.target.value)} 
+                    />
+                    <button onClick={() => finalizeSession('complete')} className="w-full bg-primary text-white font-black py-5 rounded-2xl shadow-xl uppercase text-xs tracking-widest">Complete Session</button>
                   </div>
                 </motion.div>
               </div>
             )}
           </AnimatePresence>
-        </>
+
+          {/* End Class Choice Modal */}
+          <AnimatePresence>
+            {showEndChoiceModal && (
+              <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md">
+                <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-md bg-white rounded-[2.5rem] p-10 shadow-2xl text-center">
+                  <h2 className="text-2xl font-black text-slate-800 mb-8">Finish Session?</h2>
+                  <div className="space-y-4">
+                    <button onClick={() => finalizeSession('complete')} className="w-full bg-emerald-500 text-white font-black py-4 rounded-2xl flex items-center justify-center gap-3"><Check size={18} /> Class Conducted</button>
+                    <button onClick={() => finalizeSession('reschedule')} className="w-full bg-slate-900 text-white font-black py-4 rounded-2xl flex items-center justify-center gap-3"><Clock size={18} /> Reschedule Needed</button>
+                    <button onClick={() => setShowEndChoiceModal(false)} className="w-full text-slate-400 font-bold text-xs uppercase py-2">Go Back</button>
+                  </div>
+                </motion.div>
+              </div>
+            )}
+          </AnimatePresence>
+        </div>
       );
     }
 
-    // 7. FALLBACK: CATCH-ALL FOR STATUS MISMATCH
-    auth.signOut();
-    return (
-      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 text-center">
-        <AlertCircle size={40} className="text-rose-500 mb-4" />
-        <p className="text-slate-500 font-bold">Unauthorized account state. Please sign in again.</p>
-        <button onClick={() => window.location.reload()} className="mt-4 text-primary font-bold underline">Return to Login</button>
-      </div>
-    );
+    return null;
   };
 
   return (
-    <>
+    <div className="app-container">
       {renderAppContent()}
       
-      {/* Logout Confirmation Dialog - Higher Z-Index than Registration (9999) */}
+      {/* Global Modals & Toasts */}
       <AnimatePresence>
         {showLogoutConfirm && (
           <div className="fixed inset-0 z-[10000] bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.9, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="bg-white rounded-[2.5rem] w-full max-w-md p-8 md:p-10 shadow-2xl"
-            >
-              <div className="text-center mb-8">
-                <div className="w-16 h-16 bg-rose-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <LogOut size={30} className="text-rose-600" />
-                </div>
-                <h3 className="text-2xl font-serif font-bold italic text-slate-800">Are you sure?</h3>
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-2">Do you want to logout?</p>
-              </div>
-              
+            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="bg-white rounded-[2.5rem] w-full max-w-md p-10 shadow-2xl text-center">
+              <h3 className="text-2xl font-bold text-slate-800 mb-8">End Session?</h3>
               <div className="space-y-4">
-                <button 
-                  onClick={confirmLogout}
-                  className="w-full bg-rose-600 text-white font-black py-5 rounded-2xl shadow-xl shadow-rose-600/20 hover:scale-[1.02] active:scale-95 transition-all uppercase text-xs tracking-widest"
-                >
-                  Yes, Logout
-                </button>
-                
-                <button 
-                  onClick={cancelLogout}
-                  className="w-full bg-slate-100 text-slate-600 font-black py-5 rounded-2xl hover:bg-slate-200 transition-all uppercase text-xs tracking-widest"
-                >
-                  No, Stay Here
-                </button>
+                <button onClick={confirmLogout} className="w-full bg-rose-600 text-white font-black py-5 rounded-2xl shadow-xl uppercase text-xs tracking-widest">Yes, Logout</button>
+                <button onClick={cancelLogout} className="w-full bg-slate-100 text-slate-600 font-black py-5 rounded-2xl uppercase text-xs tracking-widest">Cancel</button>
               </div>
             </motion.div>
           </div>
         )}
       </AnimatePresence>
-      {/* Global Toast System */}
+
       <AnimatePresence>
         {toast && (
-          <motion.div
-            initial={{ opacity: 0, y: 50, scale: 0.9 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.9, y: 20 }}
-            className={cn(
-              "fixed bottom-10 left-1/2 -translate-x-1/2 z-[9999] px-6 py-3 rounded-full shadow-2xl font-black text-[10px] uppercase tracking-widest flex items-center gap-3 border transition-all",
-              toast.type === 'error' ? "bg-rose-500 text-white border-rose-400" : "bg-[#004AAD] text-white border-blue-400"
-            )}
-          >
+          <motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className={cn("fixed bottom-10 left-1/2 -translate-x-1/2 z-[9999] px-6 py-3 rounded-full shadow-2xl font-black text-[10px] uppercase tracking-widest flex items-center gap-3 border", toast.type === 'error' ? "bg-rose-500 text-white border-rose-400" : "bg-primary text-white border-blue-400")}>
             {toast.type === 'error' ? <AlertCircle size={16} /> : <CheckCircle size={16} />}
             {toast.message}
           </motion.div>
         )}
       </AnimatePresence>
-    </>
+    </div>
   );
 }
 

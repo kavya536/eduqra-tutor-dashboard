@@ -11,7 +11,8 @@ import {
   User,
   X,
   FileText,
-  Briefcase
+  Briefcase,
+  FileCheck
 } from 'lucide-react';
 
 import { PageId } from '../types';
@@ -28,6 +29,7 @@ const navItems: { id: PageId; name: string; icon: React.ElementType }[] = [
   { id: 'pricing', name: 'Pricing', icon: Tag },
   { id: 'bookings', name: 'Bookings', icon: BookOpen },
   { id: 'notes', name: 'Notes', icon: FileText },
+  { id: 'assignments', name: 'Assessments', icon: FileCheck },
   { id: 'projects', name: 'Projects', icon: Briefcase },
   { id: 'reviews', name: 'Reviews', icon: Star },
 
@@ -46,7 +48,7 @@ export function Sidebar() {
       "fixed left-0 top-0 z-50"
     )}>
       <div className="mb-6 px-1 flex items-center justify-between">
-        <a href="http://localhost:5173" className="flex items-center gap-2 group cursor-pointer">
+        <a href="https://localhost:3000" className="flex items-center gap-2 group cursor-pointer">
           <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-lg border border-primary/5 transition-transform group-hover:scale-105 active:scale-95 group-hover:shadow-primary/10 overflow-hidden">
             <img src="/logo.png" alt="Eduqra" className="w-full h-full object-contain" onError={(e) => (e.currentTarget.style.display = 'none')} />
             <span className="text-primary font-black text-xl group-hover:animate-pulse">E</span>

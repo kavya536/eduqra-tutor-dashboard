@@ -48,15 +48,25 @@ export function useAppInitialization() {
       });
     }
 
+    let unsubProfile: (() => void) | null = null;
+
     // 2. Auth & Profile Subscription
     const unsubscribe = authService.subscribeToAuth(async (firebaseUser) => {
+      // Cleanup previous profile listener if it exists
+      if (unsubProfile) {
+        unsubProfile();
+        unsubProfile = null;
+      }
+
       setLoading(true);
+      
       if (firebaseUser) {
         setUser(firebaseUser);
         setProfileLoading(true);
         
-        const unsubProfile = authService.subscribeToProfile(firebaseUser.uid, async (data) => {
+        unsubProfile = authService.subscribeToProfile(firebaseUser.uid, async (data) => {
           if (data) {
+            // Enforcement: If account is blocked, immediately redirect to login logic
             if (data.status === 'blocked') {
               setProfile(data);
               setView('login'); 
@@ -67,6 +77,7 @@ export function useAppInitialization() {
 
             setProfile(data);
 
+            // Sync First Login State
             if (data.email_verified && data.first_login_completed === false && data.status === 'approved') {
               authService.markFirstLoginCompleted(firebaseUser.uid);
             }
@@ -75,25 +86,30 @@ export function useAppInitialization() {
             setProfileLoading(false);
             setLoading(false);
           } else {
+            // Legacy Migration Bridge (with safety timeout)
             try {
-              const migratedData = await authService.migrateLegacyUser(firebaseUser);
+              console.log("🔍 Profile missing in 'users', checking legacy collections...");
+              const migrationPromise = authService.migrateLegacyUser(firebaseUser);
+              const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Migration Timeout")), 5000));
+              
+              const migratedData = await Promise.race([migrationPromise, timeoutPromise]) as any;
+              
               if (migratedData) {
                 setProfile(migratedData);
                 setView('app');
               } else {
                 setProfile(null);
+                // If no profile found at all, they need to register
                 if (view !== 'register' && view !== 'app' && view !== 'login') setView('register');
               }
             } catch (err) {
-              console.error("Linker check failed:", err);
+              console.error("Linker check failed or timed out:", err);
             } finally {
               setProfileLoading(false);
               setLoading(false);
             }
           }
         });
-        
-        return () => unsubProfile();
       } else {
         setUser(null);
         setProfile(null);
@@ -102,7 +118,11 @@ export function useAppInitialization() {
         setView('login');
       }
     });
-    return () => unsubscribe();
+
+    return () => {
+      unsubscribe();
+      if (unsubProfile) unsubProfile();
+    };
   }, []);
 
   // 3. Availability Normalization

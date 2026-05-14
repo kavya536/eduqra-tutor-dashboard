@@ -205,7 +205,7 @@ export function Projects() {
                 initial={{ opacity: 0, y: -20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
-                className="bg-white p-6 md:p-8 rounded-[2rem] border border-surface-variant atelier-card-shadow max-w-2xl mb-8"
+                className="bg-white p-6 md:p-8 rounded-[2rem] border border-surface-variant atelier-card-shadow mb-8"
               >
                 <form onSubmit={handleAddProject} className="space-y-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

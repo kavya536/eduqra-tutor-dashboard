@@ -11,11 +11,12 @@ export const notificationService = {
   /**
    * Send a notification to a student
    */
-  async notifyStudent(studentEmail: string, title: string, message: string, type: 'booking' | 'chat' | 'payment' = 'booking', link: string = 'my-bookings') {
-    if (!studentEmail) return;
+  async notifyStudent(studentEmail: string, title: string, message: string, type: 'booking' | 'chat' | 'payment' = 'booking', link: string = 'my-bookings', studentId?: string) {
+    if (!studentEmail && !studentId) return;
     
     return addDoc(collection(db, 'notifications'), {
-      studentEmail: studentEmail.toLowerCase().trim(),
+      studentEmail: studentEmail ? studentEmail.toLowerCase().trim() : '',
+      userId: studentId || '', // Map studentId to userId for student-hub compatibility
       type,
       title,
       message,
@@ -29,37 +30,37 @@ export const notificationService = {
   /**
    * Notify student of a booking confirmation
    */
-  async notifyBookingConfirmed(studentEmail: string, tutorName: string, subject: string, date: string, time: string, amount?: number) {
+  async notifyBookingConfirmed(studentEmail: string, tutorName: string, subject: string, date: string, time: string, amount?: number, studentId?: string) {
     const title = 'Session Confirmed! ✅';
     const message = `${tutorName} confirmed your ${subject} session for ${date} at ${time}.${amount ? ` (Amount: ₹${amount})` : ''}`;
-    return this.notifyStudent(studentEmail, title, message, 'booking', 'my-bookings');
+    return this.notifyStudent(studentEmail, title, message, 'booking', 'my-bookings', studentId);
   },
 
   /**
    * Notify student of a booking cancellation
    */
-  async notifyBookingCancelled(studentEmail: string, tutorName: string, subject: string) {
+  async notifyBookingCancelled(studentEmail: string, tutorName: string, subject: string, studentId?: string) {
     const title = 'Session Cancelled ❌';
     const message = `${tutorName} cancelled your ${subject} session. Contact support for details.`;
-    return this.notifyStudent(studentEmail, title, message, 'booking', 'my-bookings');
+    return this.notifyStudent(studentEmail, title, message, 'booking', 'my-bookings', studentId);
   },
 
   /**
    * Notify student of a booking reschedule
    */
-  async notifyBookingRescheduled(studentEmail: string, tutorName: string, subject: string, date: string, time: string) {
+  async notifyBookingRescheduled(studentEmail: string, tutorName: string, subject: string, date: string, time: string, studentId?: string) {
     const title = 'Session Rescheduled';
     const message = `Your ${subject} session with ${tutorName} has been moved to ${date} at ${time}.`;
-    return this.notifyStudent(studentEmail, title, message, 'booking', 'my-bookings');
+    return this.notifyStudent(studentEmail, title, message, 'booking', 'my-bookings', studentId);
   },
 
   /**
    * Notify student of a new message
    */
-  async notifyNewMessage(studentEmail: string, tutorName: string, messagePreview: string) {
+  async notifyNewMessage(studentEmail: string, tutorName: string, messagePreview: string, studentId?: string) {
     const title = `New Message from ${tutorName}`;
     const message = messagePreview || 'Sent an attachment';
-    return this.notifyStudent(studentEmail, title, message, 'chat', 'chat');
+    return this.notifyStudent(studentEmail, title, message, 'chat', 'chat', studentId);
   },
 
   /**
@@ -78,5 +79,14 @@ export const notificationService = {
     const title = 'New Interactive Poll 📊';
     const message = `${tutorName} launched a new poll for your class.`;
     return this.notifyStudent(studentEmail, title, message, 'booking', 'notes');
+  },
+
+  /**
+   * Notify student of a new assignment
+   */
+  async notifyNewAssignment(studentEmail: string, tutorName: string, subject: string) {
+    const title = 'New Assignment 📝';
+    const message = `${tutorName} shared a new assessment for ${subject}.`;
+    return this.notifyStudent(studentEmail, title, message, 'booking', 'assignments');
   }
 };

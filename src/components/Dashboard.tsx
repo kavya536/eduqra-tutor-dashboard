@@ -32,19 +32,19 @@ export function Dashboard() {
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
 
   const handleDashboardReschedule = (session: Booking) => {
-    setOpenRescheduleFor(Number(session.id));
-    setCurrentPage('bookings');
+    setSelectedBooking(session);
+    setRescheduleModalOpen(true);
   };
 
   const stats = [
     { label: 'Total Sessions', value: bookings.length, icon: Library, color: 'bg-primary', textColor: 'text-white', filter: 'All' },
-    { label: 'Pending', value: bookings.filter(b => b.status === 'pending').length, icon: Clock, color: 'bg-white', textColor: 'text-secondary', filter: 'pending' },
+    { label: 'Pending', value: bookings.filter(b => b.status === 'pending' || b.status === 'paid').length, icon: Clock, color: 'bg-white', textColor: 'text-secondary', filter: 'pending' },
     { label: 'Confirmed', value: bookings.filter(b => b.status === 'confirmed').length, icon: Calendar, color: 'bg-white', textColor: 'text-primary', filter: 'confirmed' },
     { label: 'Conducted', value: bookings.filter(b => b.status === 'completed' && b.tutorJoined && b.studentJoined && b.topic && (b.durationConducted === undefined || b.durationConducted >= 2)).length, icon: Library, color: 'bg-white', textColor: 'text-emerald-500', filter: 'completed' },
   ];
 
   const upcomingSessions = [...bookings]
-    .filter(b => b.status === 'confirmed' || b.status === 'pending')
+    .filter(b => b.status === 'confirmed' || b.status === 'pending' || b.status === 'paid')
     .sort((a, b) => {
       try {
         const timeA = new Date(`${a.date} ${a.time}`).getTime();
@@ -167,7 +167,7 @@ export function Dashboard() {
                       <h4 className="font-extrabold text-base text-on-surface truncate group-hover:text-primary transition-colors">{session.name}</h4>
                       <span className={cn(
                         "px-2.5 py-1 rounded-full text-[8px] md:text-[9px] font-black uppercase tracking-widest border shadow-sm",
-                        session.status === 'pending' ? "bg-amber-50 text-amber-600 border-amber-200" : 
+                        session.status === 'pending' || session.status === 'paid' ? "bg-amber-50 text-amber-600 border-amber-200" : 
                         session.status === 'rescheduled' ? "bg-blue-50 text-blue-600 border-blue-200" :
                         "bg-emerald-50 text-emerald-600 border-emerald-200"
                       )}>
@@ -196,17 +196,29 @@ export function Dashboard() {
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-3 md:gap-4 w-full sm:w-auto">
-                  <button 
-                    onClick={() => handleDashboardReschedule(session)}
-                    className="flex-1 sm:flex-none border border-surface-variant text-on-surface text-[10px] md:text-[11px] font-black uppercase tracking-widest px-5 md:px-7 py-2.5 md:py-3 rounded-2xl hover:bg-slate-50 hover:border-primary/30 transition-all active:scale-95 flex items-center justify-center gap-2 group/btn"
-                  >
-                    <Clock className="w-4 h-4 text-primary transition-transform group-hover/btn:rotate-12" /> Reschedule
-                  </button>
+                  {(() => {
+                    const now = new Date();
+                    const sessionDate = new Date(`${session.date} ${session.time}`);
+                    // Allow reschedule until 10 mins after start
+                    const canReschedule = now.getTime() <= (sessionDate.getTime() + 10 * 60 * 1000);
+                    
+                    return canReschedule && (
+                      <button 
+                        onClick={() => handleDashboardReschedule(session)}
+                        className="flex-1 sm:flex-none border border-surface-variant text-on-surface text-[10px] md:text-[11px] font-black uppercase tracking-widest px-5 md:px-7 py-2.5 md:py-3 rounded-2xl hover:bg-slate-50 hover:border-primary/30 transition-all active:scale-95 flex items-center justify-center gap-2 group/btn"
+                      >
+                        <Clock className="w-4 h-4 text-primary transition-transform group-hover/btn:rotate-12" /> Reschedule
+                      </button>
+                    );
+                  })()}
 
                   {(() => {
                     const isJoinable = () => {
                       try {
-                        const now = new Date();
+                        const isToday = session.date === todayStr || session.date === isoToday;
+                        const sessionStartDate = new Date(session.date);
+                        const isWithinCourseRange = (session as any).plan === 'course' && now >= sessionStartDate && (!courseEndDate || now.getTime() <= courseEndDate);
+                        
                         const sessionDate = new Date(`${session.date} ${session.time}`);
                         const diffMins = (sessionDate.getTime() - now.getTime()) / (1000 * 60);
                         
@@ -216,17 +228,42 @@ export function Dashboard() {
                         
                         const isPastSafetyWindow = now.getTime() > (sessionDate.getTime() + (durationMins + gracePeriodMins) * 60 * 1000);
 
-                        if (isPastSafetyWindow) return false; // Hide if way past end time
+                        // Check if course has ended
+                        const isCourseEnded = courseEndDate && now.getTime() > courseEndDate;
+
+                        if (isPastSafetyWindow && !isWithinCourseRange) return false; 
+                        if (isCourseEnded) return false;
                         
                         if (session.status === 'live') return true;
                         if (session.status !== 'confirmed') return false;
                         
-                        // Joinable from 10 mins before start. 
-                        return diffMins <= 10; 
+                        // Joinable if it's today OR within course range
+                        return isWithinCourseRange || diffMins <= 10; 
                       } catch (e) {
                         return false;
                       }
                     };
+
+                    const courseEndDate = session.courseEndDate ? (session.courseEndDate.toMillis ? session.courseEndDate.toMillis() : new Date(session.courseEndDate).getTime()) : null;
+                    const now = new Date();
+                    const todayStr = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                    const isoToday = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+                    const isToday = session.date === todayStr || session.date === isoToday;
+                    const sessionStartDate = new Date(session.date);
+                    const isWithinCourseRange = (session as any).plan === 'course' && now >= sessionStartDate && (!courseEndDate || now.getTime() <= courseEndDate);
+
+                    const isCourseEnded = courseEndDate && now.getTime() > courseEndDate;
+
+                    if (isCourseEnded) {
+                      return (
+                        <button 
+                          disabled
+                          className="flex-1 sm:flex-none bg-rose-50 text-rose-600 text-[10px] md:text-[11px] font-black uppercase tracking-widest px-5 md:px-7 py-2.5 md:py-3 rounded-2xl cursor-not-allowed border border-rose-100 flex items-center justify-center gap-2"
+                        >
+                          <XCircle className="w-4 h-4" /> Course Ended
+                        </button>
+                      );
+                    }
 
                     if (isJoinable()) {
                       if (session.isSubscription && (session as any).subscriptionStatus === 'expired') {

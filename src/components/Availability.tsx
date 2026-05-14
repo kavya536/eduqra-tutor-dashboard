@@ -74,8 +74,9 @@ function parseTime(t: string) {
 
 export function Availability() {
   const { profile } = useAuthStore();
-  const { manualSlots: slots, bookings } = useBookingStore();
+  const { bookings, manualSlots } = useBookingStore();
   
+  const slots = manualSlots;
   const tutorId = profile?.id || '';
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentSlot, setCurrentSlot] = useState<Partial<AvailabilitySlot> | null>(null);
@@ -150,6 +151,9 @@ export function Availability() {
       
       const dayBookingsRaw = activeBookings.filter(b => {
         if (!b.date) return false;
+        // SPECIAL RULE: Demos only "occupy" a slot in the availability view if they are confirmed/accepted.
+        // Pending demos are kept visible in the 'Bookings' tab for the tutor to accept, but don't block the slot yet.
+        if (b.type === 'demo' && b.status === 'pending') return false;
         return normalizeDate(b.date) === dateStr;
       });
 
@@ -189,31 +193,39 @@ export function Availability() {
         const sStartMins = parseTime(s.start);
         const sEndMins = parseTime(s.end);
 
-        // Split into hourly blocks for the UI grid
-        for (let m = sStartMins; m < sEndMins; m += 60) {
-          const slotTimeStr = formatMins(m);
-          const slotEndMins = m + 60;
-
-          // Check if this specific hour is covered by any booking
-          const isOccupied = dayBookings.some(b => {
+        let currentFreeStart = sStartMins;
+        
+        // Find bookings that overlap with this slot
+        const overlappingBookings = dayBookings.map(b => {
             const bStart = parseTime(b.time);
             const bDurMatch = b.duration?.toString().match(/([\d.]+)/);
             const bDurMins = bDurMatch ? parseFloat(bDurMatch[1]) * 60 : 60;
-            const bEnd = bStart + bDurMins;
-            // Conflict if ranges overlap
-            return m < bEnd && slotEndMins > bStart;
-          });
+            return { start: bStart, end: bStart + bDurMins };
+        }).filter(b => b.start < sEndMins && b.end > sStartMins).sort((a,b) => a.start - b.start);
 
-          if (!isOccupied) {
-            processed.push({
+        overlappingBookings.forEach(b => {
+           if (currentFreeStart < b.start) {
+              processed.push({
+                 ...s,
+                 id: `${s.id}-${currentFreeStart}`,
+                 start: formatMins(currentFreeStart),
+                 end: formatMins(b.start),
+                 displayStatus: 'free',
+                 booked: false
+              });
+           }
+           currentFreeStart = Math.max(currentFreeStart, b.end);
+        });
+
+        if (currentFreeStart < sEndMins) {
+           processed.push({
               ...s,
-              id: `${s.id}-${m}`, // Unique ID for this hour block
-              start: slotTimeStr,
-              end: formatMins(slotEndMins),
+              id: `${s.id}-${currentFreeStart}`,
+              start: formatMins(currentFreeStart),
+              end: formatMins(sEndMins),
               displayStatus: 'free',
               booked: false
-            });
-          }
+           });
         }
       });
 
@@ -295,9 +307,10 @@ export function Availability() {
       });
   };
 
-  const handleDeleteSlot = (id: number) => {
-    if (!confirm("Remove this availability slot?")) return;
-    const updatedSlots = slots.filter(s => s.id !== id);
+  const handleDeleteSlot = (gridId: any) => {
+    // Extract original ID from grid ID (e.g., "12345-540") or use as is
+    const originalId = typeof gridId === 'string' && gridId.includes('-') ? gridId.split('-')[0] : String(gridId);
+    const updatedSlots = slots.filter(s => String(s.id) !== originalId);
     authService.updateAvailability(tutorId, updatedSlots);
   };
 
@@ -435,7 +448,7 @@ export function Availability() {
                                 slot.booked ? (slot.displayStatus === 'pending' ? "text-amber-900" : "text-white") : "text-slate-800"
                               )}>
                                 <Clock size={10} />
-                                {slot.booked && slot.bookingTime ? slot.bookingTime : formatTime(slot.start)}
+                                {slot.booked && slot.bookingTime ? slot.bookingTime : `${formatTime(slot.start)} - ${formatTime(slot.end)}`}
                               </p>
                               {slot.booked ? (
                                 <div className="mt-1.5 pt-1.5 border-t border-current/10 space-y-1">
@@ -612,37 +625,46 @@ export function Availability() {
 
                 <div className="grid grid-cols-2 gap-6">
                   <div className="space-y-3">
-                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">Start Time (AM/PM)</label>
+                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">Start Time</label>
                     <div className="relative group">
-                      <Clock className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-primary transition-all duration-300" size={18} />
+                      <Clock className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-primary transition-all duration-300 z-10" size={18} />
                       <input 
                         type="time" 
-                        className="w-full bg-slate-50/80 border-2 border-transparent focus:border-primary/20 focus:bg-white rounded-2xl py-4 pl-14 pr-4 text-sm font-black outline-none transition-all"
+                        className="w-full bg-slate-50/80 border-2 border-transparent focus:border-primary/20 focus:bg-white rounded-2xl py-4 pl-14 pr-4 text-sm font-black outline-none transition-all relative z-10 cursor-pointer text-transparent"
                         value={currentSlot?.start || ''}
-                        onChange={(e) => setCurrentSlot({...currentSlot, start: e.target.value})}
+                        onChange={(e) => {
+                          const newStart = e.target.value;
+                          let newEnd = currentSlot.end;
+                          if (newStart) {
+                            const [h, m] = newStart.split(':').map(Number);
+                            const endH = (h + 1) % 24;
+                            newEnd = `${endH.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+                          }
+                          setCurrentSlot({...currentSlot, start: newStart, end: newEnd});
+                        }}
                       />
-                      {currentSlot?.start && (
-                        <div className="absolute right-4 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-primary text-white rounded-xl shadow-lg shadow-primary/20">
-                          <span className="text-[10px] font-black uppercase tracking-widest">{formatTime(currentSlot.start)}</span>
-                        </div>
-                      )}
+                      <div className="absolute inset-0 flex items-center pl-14 pointer-events-none z-30">
+                        <span className="text-sm font-black text-slate-950">
+                          {currentSlot?.start ? formatTime(currentSlot.start) : '00:00 AM'}
+                        </span>
+                      </div>
                     </div>
                   </div>
                   <div className="space-y-3">
-                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">End Time (AM/PM)</label>
+                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">End Time</label>
                     <div className="relative group">
-                      <Clock className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-primary transition-all duration-300" size={18} />
+                      <Clock className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-primary transition-all duration-300 z-10" size={18} />
                       <input 
                         type="time" 
-                        className="w-full bg-slate-50/80 border-2 border-transparent focus:border-primary/20 focus:bg-white rounded-2xl py-4 pl-14 pr-4 text-sm font-black outline-none transition-all"
+                        className="w-full bg-slate-50/80 border-2 border-transparent focus:border-primary/20 focus:bg-white rounded-2xl py-4 pl-14 pr-4 text-sm font-black outline-none transition-all relative z-20 cursor-pointer text-transparent"
                         value={currentSlot?.end || ''}
                         onChange={(e) => setCurrentSlot({...currentSlot, end: e.target.value})}
                       />
-                      {currentSlot?.end && (
-                        <div className="absolute right-4 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-primary text-white rounded-xl shadow-lg shadow-primary/20">
-                          <span className="text-[10px] font-black uppercase tracking-widest">{formatTime(currentSlot.end)}</span>
-                        </div>
-                      )}
+                      <div className="absolute inset-0 flex items-center pl-14 pointer-events-none z-30">
+                        <span className="text-sm font-black text-slate-950">
+                          {currentSlot?.end ? formatTime(currentSlot.end) : '00:00 AM'}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>

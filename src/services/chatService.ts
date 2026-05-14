@@ -41,39 +41,79 @@ export const chatService = {
    */
   getSmartDate(dateVal: any) {
     if (!dateVal) return 'Now';
-    let date: Date;
-    
-    if (dateVal.seconds) {
-      date = new Date(dateVal.seconds * 1000);
-    } else {
-      date = new Date(dateVal);
-    }
+    let d: Date;
+    if (dateVal.seconds) d = new Date(dateVal.seconds * 1000);
+    else d = new Date(dateVal);
 
-    if (isNaN(date.getTime())) return 'Now';
+    if (isNaN(d.getTime())) return 'Now';
 
     const now = new Date();
-    const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
-    
-    if (diffDays === 0) {
-      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    const msgDate = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    const diffTime = today.getTime() - msgDate.getTime();
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+    // 1. Today: Show Time
+    if (msgDate.getTime() === today.getTime()) {
+      return d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
     }
-    if (diffDays === 1) return 'Yesterday';
-    if (diffDays < 7) {
+    
+    // 2. Yesterday: Show 'Yesterday'
+    if (msgDate.getTime() === yesterday.getTime()) return 'Yesterday';
+    
+    // 3. Within This Week (e.g. Monday to Sunday): Show Day Name
+    if (diffDays > 0 && diffDays < 7) {
       const weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-      return weekdays[date.getDay()];
+      return weekdays[d.getDay()];
     }
     
-    return date.toLocaleDateString();
+    // 4. Older: Show Full Date & Time (e.g., May 12, 04:03 PM)
+    return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) + ', ' + d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
   },
 
   /**
    * Subscribe to chat list
    */
-  subscribeToChats(tutorId: string, studentProfiles: Record<string, StudentProfile>, callback: (chats: ChatContact[]) => void) {
-    const cQuery = query(collection(db, 'whatsapp'), where('tutorId', '==', tutorId));
+  subscribeToChats(profile: any, studentProfiles: Record<string, StudentProfile>, callback: (chats: ChatContact[]) => void) {
+    // Broader query to include legacy chats that might be missing tutorId field
+    // We'll filter by tutorId field OR document ID containing the tutorId
+    const cQuery = query(collection(db, 'whatsapp'));
     
     return onSnapshot(cQuery, (snap) => {
-      const chatList = snap.docs.map(d => {
+      const chatList = snap.docs
+        .filter(d => {
+          const data = d.data();
+          const dId = d.id;
+          
+          // Profile identifiers
+          const tId = (profile?.id || '').toLowerCase();
+          const tUid = (profile?.uid || '').toLowerCase();
+          const tEmail = (profile?.email || '').toLowerCase();
+          const tName = (profile?.name || '').toLowerCase();
+          
+          const tIdNorm = tId.replace(/\./g, '_');
+          const tEmailNorm = tEmail.replace(/\./g, '_');
+
+          // Check fields
+          const fieldMatch = 
+            (data.tutorId && data.tutorId.toLowerCase() === tId) ||
+            (data.tutorId && data.tutorId.toLowerCase() === tUid) ||
+            (data.tutorEmail && data.tutorEmail.toLowerCase() === tEmail) ||
+            (data.tutorName && data.tutorName.toLowerCase() === tName);
+
+          // Check document ID
+          const idMatch = 
+            dId.toLowerCase().includes(tIdNorm) || 
+            dId.toLowerCase().includes(tEmailNorm) ||
+            dId.toLowerCase().includes(tId) ||
+            dId.toLowerCase().includes(tName.replace(/\s+/g, '_'));
+
+          return fieldMatch || idMatch;
+        })
+        .map(d => {
         const data = d.data();
         const dId = d.id;
         const sEmail = this.extractEmailFromChatId(dId, data);
@@ -115,23 +155,56 @@ export const chatService = {
    * Subscribe to messages for a specific chat
    */
   subscribeToMessages(chatId: string, tutorId: string, callback: (messages: Message[]) => void) {
-    const mQuery = query(collection(db, `whatsapp/${chatId}/messages`), orderBy('timestamp', 'asc'));
-    
-    return onSnapshot(mQuery, (snap) => {
-      const msgs = snap.docs.map(d => {
-        const data = d.data();
-        return { 
-          id: d.id, 
-          ...data,
-          sender: data.senderId === tutorId ? 'me' : 'student' 
-        } as Message;
-      }).filter((m: Message) => !(m as any).deletedBy?.includes(tutorId));
+    const syncMessages = async () => {
+      // Extract studentEmail from chatId
+      // chatId is usually tutorId_studentEmailKey OR studentEmailKey_tutorId
+      const parts = chatId.split('_');
+      let studentEmailKey = '';
+      if (parts[0] === tutorId) studentEmailKey = parts.slice(1).join('_');
+      else studentEmailKey = parts.slice(0, -1).join('_');
+
+      const id1 = `${tutorId}_${studentEmailKey}`;
+      const id2 = `${studentEmailKey}_${tutorId}`;
+
+      // Check which one has messages
+      const q1 = query(collection(db, `whatsapp/${id1}/messages`));
+      const snap1 = await getDocs(q1);
       
-      callback(msgs);
-      
+      let foundId = id1;
+      if (snap1.empty) {
+        const q2 = query(collection(db, `whatsapp/${id2}/messages`));
+        const snap2 = await getDocs(q2);
+        if (!snap2.empty) foundId = id2;
+      }
+
+      // Mark as read
       const chatRef = doc(db, 'whatsapp', chatId);
-      updateDoc(chatRef, { tutorUnreadCount: 0 });
-    });
+      updateDoc(chatRef, { tutorUnreadCount: 0 }).catch(() => {});
+
+      // Subscribe to the correct one
+      const unsub = onSnapshot(query(collection(db, `whatsapp/${foundId}/messages`)), (snap) => {
+        const msgs = snap.docs.map(d => {
+          const data = d.data();
+          return { 
+            id: d.id, 
+            ...data,
+            sender: data.senderId === tutorId ? 'me' : 'student' 
+          } as Message;
+        }).sort((a: any, b: any) => {
+          const timeA = a.timestamp?.toMillis?.() || a.timestamp?.seconds * 1000 || 0;
+          const timeB = b.timestamp?.toMillis?.() || b.timestamp?.seconds * 1000 || 0;
+          return timeA - timeB;
+        });
+        callback(msgs);
+      });
+
+      return unsub;
+    };
+
+    let unsubPromise = syncMessages();
+    return () => {
+      unsubPromise.then(unsub => unsub?.());
+    };
   },
 
   /**
@@ -182,10 +255,16 @@ export const chatService = {
   async deleteMessage(chatId: string, messageId: string | number, everyone: boolean) {
     const msgRef = doc(db, `whatsapp/${chatId}/messages`, messageId.toString());
     if (everyone) {
-      return updateDoc(msgRef, { 
-        text: '🚫 This message was deleted', 
+      const deletedLabel = '🚫 This message was deleted';
+      await updateDoc(msgRef, { 
+        text: deletedLabel, 
         type: 'deleted', 
         deletedForEveryone: true 
+      });
+      // Sync parent preview and timestamp
+      return updateDoc(doc(db, 'whatsapp', chatId), {
+        lastMessage: deletedLabel,
+        timestamp: serverTimestamp()
       });
     } else {
       return updateDoc(msgRef, { 
@@ -248,27 +327,19 @@ export const chatService = {
       console.error("Profile lookup error during chat init:", e);
     }
 
-    const initialMsg = 'Hello! How can I help you today?';
     await setDoc(chatRef, {
       tutorId,
       tutorName,
       tutorAvatar,
       studentEmail,
       studentName,
-      lastMessage: initialMsg,
+      lastMessage: 'Chat initialized',
       lastMessageTime: new Date().toISOString(),
       timestamp: serverTimestamp(),
       tutorUnreadCount: 0,
-      studentUnreadCount: 1
+      studentUnreadCount: 0
     });
 
-    return addDoc(collection(chatRef, 'messages'), {
-      senderId: tutorId,
-      text: initialMsg,
-      timestamp: serverTimestamp(),
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      date: 'TODAY',
-      deletedBy: []
-    });
+    return;
   }
 };

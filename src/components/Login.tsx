@@ -14,13 +14,13 @@ const mapAuthError = (code: string) => {
   switch (code) {
     case 'auth/user-not-found': return "⚠️ No account found with this email address.";
     case 'auth/wrong-password':
-    case 'auth/invalid-credential': return "❌ Incorrect email or password. Please try again.";
-    case 'auth/too-many-requests': return "⚠️ Too many failed attempts. Please try again later or reset your password.";
-    case 'auth/invalid-email': return "⚠️ Please enter a valid email address.";
-    case 'auth/network-request-failed': return "🌐 Network error. Please check your internet connection and try again.";
-    case 'auth/user-disabled': return "🚫 Your account has been disabled. Please contact support.";
-    case 'auth/operation-not-allowed': return "⚠️ Email/Password sign-in is not enabled. Please contact admin.";
-    default: return "⚠️ An unexpected error occurred. Please check your credentials and try again.";
+    case 'auth/invalid-credential': return "❌ Incorrect email or password. Please double-check your credentials.";
+    case 'auth/too-many-requests': return "⚠️ Too many failed attempts. Please wait a few minutes or try resetting your password.";
+    case 'auth/invalid-email': return "⚠️ The email address you entered is not valid.";
+    case 'auth/network-request-failed': return "🌐 Network error. Please check your connection and try again.";
+    case 'auth/user-disabled': return "🚫 This account has been disabled. Please contact support.";
+    case 'auth/operation-not-allowed': return "⚠️ This sign-in method is currently disabled.";
+    default: return "⚠️ Something went wrong. Please check your details and try again.";
   }
 };
 

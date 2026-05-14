@@ -1,6 +1,6 @@
 import { Timestamp } from 'firebase/firestore';
 
-export type BookingStatus = 'pending' | 'confirmed' | 'cancelled' | 'completed' | 'rescheduled' | 'live' | 'unpaid';
+export type BookingStatus = 'pending' | 'confirmed' | 'cancelled' | 'completed' | 'rescheduled' | 'live' | 'unpaid' | 'paid';
 
 export interface ParticipantData {
   name: string;
@@ -57,4 +57,6 @@ export interface Booking {
   plan?: string;
   subjectsPricing?: any;
   studentType?: string;
+  courseEndDate?: any;
+  rescheduledDays?: Record<string, string>;
 }

@@ -49,7 +49,7 @@ export function Reviews() {
   }, [reviews]);
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-16 p-4">
+    <div className="w-full space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-16 p-4">
       {/* Refined Left-Stat Header */}
       <section className="bg-white p-6 md:p-8 rounded-[2.5rem] shadow-xl shadow-primary/5 border border-slate-100 relative overflow-hidden group">
         <div className="flex flex-col md:flex-row items-center gap-10 md:gap-14 relative z-10">

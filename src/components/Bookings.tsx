@@ -1,4 +1,4 @@
-import { Search, Calendar, BookOpen, Check, X, Clock, MessageSquare, Phone, AlertCircle } from 'lucide-react';
+import { Search, Calendar, BookOpen, Check, X, Clock, MessageSquare, Phone, AlertCircle, XCircle } from 'lucide-react';
 import { Booking, BookingStatus, PageId, AvailabilitySlot } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { useState, useEffect } from 'react';
@@ -147,6 +147,7 @@ export function Bookings() {
                     <span className={cn(
                       "px-1.5 py-0.5 md:px-2 md:py-0.5 rounded-full text-[7px] md:text-[8px] font-black uppercase tracking-widest shrink-0 border border-black/5",
                       booking.status === 'pending' ? "bg-amber-100 text-amber-600" : 
+                      booking.status === 'paid' ? "bg-emerald-100 text-emerald-600 border-emerald-200" :
                       booking.status === 'confirmed' ? "bg-primary/10 text-primary" : 
                       booking.status === 'completed' ? "bg-emerald-100 text-emerald-600" : "bg-slate-100 text-slate-500"
                     )}>
@@ -157,14 +158,17 @@ export function Bookings() {
                     <span className="text-[8px] md:text-[9px] font-bold text-primary bg-primary/5 px-1.5 py-0.5 rounded-md inline-block truncate max-w-full">
                       {booking.subject || 'General Session'}
                     </span>
-                    {(booking as any).plan && (
-                      <span className="text-[7px] md:text-[8px] font-black bg-blue-50 text-blue-600 px-2 py-0.5 rounded-md uppercase tracking-widest border border-blue-100">
-                        {(booking as any).plan}
+                    <span className="text-[7px] md:text-[8px] font-black bg-blue-50 text-blue-600 px-2 py-0.5 rounded-md uppercase tracking-widest border border-blue-100">
+                      {booking.type === 'demo' ? 'Demo' : 'Regular'}
+                    </span>
+                    {booking.duration && (
+                      <span className="text-[7px] md:text-[8px] font-black bg-amber-50 text-amber-600 px-2 py-0.5 rounded-md uppercase tracking-widest border border-amber-100">
+                        {booking.duration}
                       </span>
                     )}
-                    {(booking as any).type === 'demo' && (
-                      <span className="text-[7px] md:text-[8px] font-black bg-accent text-white px-2.5 py-1 rounded-lg uppercase tracking-[0.1em] shadow-md border border-white/20">
-                        Free Demo
+                    {(booking as any).plan && (
+                      <span className="text-[7px] md:text-[8px] font-black bg-slate-50 text-slate-600 px-2 py-0.5 rounded-md uppercase tracking-widest border border-slate-100">
+                        {(booking as any).plan}
                       </span>
                     )}
                   </div>
@@ -196,7 +200,17 @@ export function Bookings() {
                   <Clock className="w-4 h-4 text-primary" />
                   <div>
                     <p className="text-[8px] font-bold uppercase tracking-widest text-on-surface-variant">Time ({booking.duration})</p>
-                    <p className="text-[11px] font-bold text-on-surface">{booking.time}</p>
+                    <p className="text-[11px] font-bold text-on-surface">
+                      {booking.status === 'completed' && booking.durationConducted && booking.durationConducted > 14 ? (
+                        <span className="text-emerald-600">Conducted ({booking.durationConducted}m)</span>
+                      ) : (
+                        (() => {
+                           const today = new Date().toISOString().split('T')[0];
+                           if (booking.rescheduledDays?.[today]) return `${booking.rescheduledDays[today]} (Today)`;
+                           return booking.time;
+                         })()
+                      )}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -205,129 +219,147 @@ export function Bookings() {
                 "{booking.message || 'No additional message provided.'}"
               </div>
 
-              <div className="mt-auto space-y-2">
-                  {booking.status === 'pending' && (
-                    <div className="flex flex-col sm:flex-row gap-2">
-                      <button 
-                        onClick={() => bookingService.updateStatus(booking.id.toString(), 'confirmed', profile?.name || 'Tutor', booking)}
-                        className="flex-1 bg-primary text-white font-bold py-2.5 rounded-xl text-[10px] hover:bg-primary/90 transition-all shadow-sm active:scale-95 flex items-center justify-center gap-1.5"
-                      >
-                        <Check className="w-3.5 h-3.5" /> Accept
-                      </button>
-                      <button 
-                        onClick={async () => {
-                          await bookingService.updateStatus(booking.id.toString(), 'cancelled', profile?.name || 'Tutor', booking);
-                          handleRescheduleClick(booking); // Proactively suggest rescheduling
-                        }}
-                        className="flex-1 bg-red-50 text-red-600 font-bold py-2.5 rounded-xl text-[10px] hover:bg-red-100 transition-all shadow-sm active:scale-95 flex items-center justify-center gap-1.5"
-                      >
-                        <X className="w-3.5 h-3.5" /> Reject & Reschedule
-                      </button>
-                    </div>
-                  )}
+              {(() => {
+                const now = new Date();
                 
-                <div className="flex gap-2">
-                  {(() => {
-                    const now = new Date();
-                    const sessionStart = new Date(`${booking.date} ${booking.time}`);
-                    if (now >= sessionStart) return null;
-                    
-                    return (
-                      <button 
-                        onClick={() => handleRescheduleClick(booking)}
-                        className="flex-1 bg-white border border-surface-variant text-on-surface font-bold py-2.5 rounded-xl text-[10px] hover:bg-slate-50 transition-all active:scale-95 flex items-center justify-center gap-1.5"
-                      >
-                        <Clock className="w-3.5 h-3.5" /> Reschedule
-                      </button>
-                    );
-                  })()}
-                </div>
+                // Construct robust date objects for comparison
+                const [year, month, day] = booking.date.includes('-') 
+                  ? booking.date.split('-').map(Number)
+                  : [now.getFullYear(), now.getMonth(), now.getDate()];
+                
+                const isoToday = now.toISOString().split('T')[0];
+                const actualTime = (booking.rescheduledDays?.[isoToday]) || booking.time;
+                
+                const timeMatch = actualTime.match(/(\d+):(\d+)\s*(AM|PM)/i);
+                let hours = 0, minutes = 0;
+                if (timeMatch) {
+                  let [_, h, m, ampm] = timeMatch;
+                  hours = parseInt(h);
+                  minutes = parseInt(m);
+                  if (ampm.toUpperCase() === 'PM' && hours < 12) hours += 12;
+                  if (ampm.toUpperCase() === 'AM' && hours === 12) hours = 0;
+                }
 
-                {booking.status === 'confirmed' && (() => {
-                  const now = new Date();
-                  
-                  // Construct robust date objects for comparison
-                  const [year, month, day] = booking.date.includes('-') 
-                    ? booking.date.split('-').map(Number)
-                    : [now.getFullYear(), now.getMonth(), now.getDate()]; // Fallback for mock data strings
-                  
-                  // Parse time: "12:00 PM" -> hours, minutes
-                  const timeMatch = booking.time.match(/(\d+):(\d+)\s*(AM|PM)/i);
-                  let hours = 0, minutes = 0;
-                  if (timeMatch) {
-                    let [_, h, m, ampm] = timeMatch;
-                    hours = parseInt(h);
-                    minutes = parseInt(m);
-                    if (ampm.toUpperCase() === 'PM' && hours < 12) hours += 12;
-                    if (ampm.toUpperCase() === 'AM' && hours === 12) hours = 0;
-                  }
+                const sessionStart = new Date(year, month - 1, day, hours, minutes);
+                const durationHrs = parseFloat(booking.duration || '1');
+                const sessionEnd = new Date(sessionStart.getTime() + durationHrs * 60 * 60 * 1000);
+                const isPast = now > sessionEnd;
+                const isToday = now.toDateString() === sessionStart.toDateString();
+                const diffMs = sessionStart.getTime() - now.getTime();
+                const diffMins = diffMs / (60 * 1000);
+                
+                const courseEndDate = booking.courseEndDate ? (booking.courseEndDate.toMillis ? booking.courseEndDate.toMillis() : new Date(booking.courseEndDate).getTime()) : null;
+                const isCourseEnded = courseEndDate && now.getTime() > courseEndDate;
+                const isWithinCourseRange = (booking as any).plan === 'course' && now >= sessionStart && (!courseEndDate || now.getTime() <= courseEndDate);
 
-                  const sessionStart = new Date(booking.date.includes('-') ? booking.date : `${now.getMonth()+1}/${now.getDate()}/${now.getFullYear()}`);
-                  sessionStart.setHours(hours, minutes, 0, 0);
-                  
-                  const durationHrs = parseFloat(booking.duration || '1');
-                  const sessionEnd = new Date(sessionStart.getTime() + durationHrs * 60 * 60 * 1000);
-                  
-                  const diffMs = sessionStart.getTime() - now.getTime();
-                  const diffMins = diffMs / (60 * 1000);
-                  
-                  // Active window: Starts 10 mins before, ends exactly at duration end
-                  const isActive = now >= new Date(sessionStart.getTime() - 10 * 60 * 1000) && now <= sessionEnd;
-                  const isPast = now > sessionEnd;
-                  const isToday = now.toDateString() === sessionStart.toDateString();
+                const isActive = (now >= new Date(sessionStart.getTime() - 10 * 60 * 1000) && now <= sessionEnd) || isWithinCourseRange;
 
-                  return (
-                    <div className="flex flex-col gap-2">
+                return (
+                  <div className="mt-auto space-y-2">
+                    {(booking.status === 'pending' || booking.status === 'paid') && (
                       <div className="flex flex-col sm:flex-row gap-2">
                         <button 
-                          onClick={async () => {
-                            if (!profile?.id) return;
-                            const chatId = `${profile.id}_${booking.studentEmail.replace(/\./g, '_')}`;
-                            const studentName = booking.name || (booking as any).studentName || 'Student';
-                            await chatService.initializeChat(chatId, profile.id, profile.name, profile.avatar || '', booking.studentEmail, studentName);
-                            setActiveChatId(chatId);
-                            setCurrentPage('chat');
-                          }}
-                          className="flex-1 bg-primary/5 text-primary font-bold py-2.5 rounded-xl text-[10px] hover:bg-primary/10 transition-all active:scale-95 flex items-center justify-center gap-1.5"
+                          onClick={() => bookingService.updateStatus(booking.id.toString(), 'confirmed', profile?.name || 'Tutor', booking)}
+                          className="flex-1 bg-primary text-white font-bold py-2.5 rounded-xl text-[10px] hover:bg-primary/90 transition-all shadow-sm active:scale-95 flex items-center justify-center gap-1.5"
                         >
-                          <MessageSquare className="w-3.5 h-3.5" /> Chat
+                          <Check className="w-3.5 h-3.5" /> Accept
                         </button>
-                        {isActive ? (
-                          <button 
-                            onClick={() => setCurrentPage('live-class')}
-                            className="flex-1 bg-primary text-white font-bold py-2.5 rounded-xl text-[10px] hover:bg-primary/90 transition-all active:scale-95 flex items-center justify-center gap-2 shadow-lg shadow-primary/20 animate-pulse"
-                          >
-                            <Clock className="w-3.5 h-3.5" /> Join Class
-                          </button>
-                        ) : !isPast && (
-                          <div className="flex-1 bg-slate-50 text-slate-400 font-bold py-2.5 rounded-xl text-[10px] flex items-center justify-center gap-1.5 border border-slate-100 italic">
-                            <Clock className="w-3.5 h-3.5" /> {
-                              (isToday && diffMins > 10) ? 'Session Not Started' : 'Upcoming'
-                            }
-                          </div>
-                        )}
+                        <button 
+                          onClick={async () => {
+                            await bookingService.updateStatus(booking.id.toString(), 'cancelled', profile?.name || 'Tutor', booking);
+                            handleRescheduleClick(booking); 
+                          }}
+                          className="flex-1 bg-red-50 text-red-600 font-bold py-2.5 rounded-xl text-[10px] hover:bg-red-100 transition-all shadow-sm active:scale-95 flex items-center justify-center gap-1.5"
+                        >
+                          <X className="w-3.5 h-3.5" /> Reject & Reschedule
+                        </button>
                       </div>
-                      
-                      {isPast && (
-                        <div className="flex flex-col gap-2 w-full mt-1">
-                          <button 
-                            onClick={() => bookingService.updateStatus(booking.id.toString(), 'completed', profile?.name || 'Tutor', booking)}
-                            className="w-full bg-emerald-500 text-white font-bold py-3 rounded-xl text-[10px] hover:bg-emerald-600 transition-all active:scale-95 flex items-center justify-center gap-1.5 shadow-sm"
-                          >
-                            <Check className="w-3.5 h-3.5" /> Mark Conducted (Continue)
-                          </button>
+                    )}
+                  
+                    <div className="flex gap-2">
+                      {(() => {
+                        const canReschedule = now.getTime() <= (sessionStart.getTime() + 10 * 60 * 1000) || 
+                                             (isPast && (booking.attendance_status === 'not_attended' || booking.attendance_status === 'not_conducted'));
+                        
+                        return canReschedule && (
                           <button 
                             onClick={() => handleRescheduleClick(booking)}
-                            className="w-full bg-white border border-surface-variant text-on-surface font-bold py-2.5 rounded-xl text-[10px] hover:bg-slate-50 transition-all active:scale-95 flex items-center justify-center gap-1.5"
+                            className="flex-1 bg-white border border-surface-variant text-on-surface font-bold py-2.5 rounded-xl text-[10px] hover:bg-slate-50 transition-all active:scale-95 flex items-center justify-center gap-1.5"
                           >
                             <Clock className="w-3.5 h-3.5" /> Reschedule
                           </button>
-                        </div>
-                      )}
+                        );
+                      })()}
                     </div>
-                  );
-                })()}
-              </div>
+
+                    {booking.status === 'confirmed' && (
+                      <div className="flex flex-col gap-2">
+                        <div className="flex flex-col sm:flex-row gap-2">
+                          <button 
+                            onClick={async () => {
+                              if (!profile?.id) return;
+                              const chatId = `${profile.id}_${booking.studentEmail.replace(/\./g, '_')}`;
+                              const studentName = booking.name || (booking as any).studentName || 'Student';
+                              await chatService.initializeChat(chatId, profile.id, profile.name, profile.avatar || '', booking.studentEmail, studentName);
+                              setActiveChatId(chatId);
+                              setCurrentPage('chat');
+                            }}
+                            className="flex-1 bg-primary/5 text-primary font-bold py-2.5 rounded-xl text-[10px] hover:bg-primary/10 transition-all active:scale-95 flex items-center justify-center gap-1.5"
+                          >
+                            <MessageSquare className="w-3.5 h-3.5" /> Chat
+                          </button>
+                          {isCourseEnded ? (
+                            <button 
+                              disabled
+                              className="flex-1 bg-rose-50 text-rose-600 font-bold py-2.5 rounded-xl text-[10px] cursor-not-allowed border border-rose-100 flex items-center justify-center gap-1.5"
+                            >
+                              <XCircle className="w-3.5 h-3.5" /> Course Ended
+                            </button>
+                          ) : isActive ? (
+                            <button 
+                              onClick={() => setCurrentPage('live-class')}
+                              className="flex-1 bg-primary text-white font-bold py-2.5 rounded-xl text-[10px] hover:bg-primary/90 transition-all active:scale-95 flex items-center justify-center gap-2 shadow-lg shadow-primary/20 animate-pulse"
+                            >
+                              <Clock className="w-3.5 h-3.5" /> Join Class
+                            </button>
+                          ) : !isPast && (
+                            <div className="flex-1 bg-slate-50 text-slate-400 font-bold py-2.5 rounded-xl text-[10px] flex items-center justify-center gap-1.5 border border-slate-100 italic">
+                              <Clock className="w-3.5 h-3.5" /> {
+                                (isToday && diffMins > 10) ? 'Session Not Started' : 'Upcoming'
+                              }
+                            </div>
+                          )}
+                        </div>
+                        
+                        {isPast && (
+                          <div className="flex flex-col gap-2 w-full mt-1">
+                            <div className="flex flex-wrap gap-2">
+                              <button 
+                                onClick={() => bookingService.updateAttendance(booking.id.toString(), 'attended', 'completed')}
+                                className="flex-1 bg-emerald-500 text-white font-bold py-2.5 rounded-xl text-[10px] hover:bg-emerald-600 transition-all active:scale-95 flex items-center justify-center gap-1.5 shadow-sm"
+                              >
+                                <Check className="w-3.5 h-3.5" /> Conducted
+                              </button>
+                              <button 
+                                onClick={() => bookingService.updateAttendance(booking.id.toString(), 'not_attended', 'completed')}
+                                className="flex-1 bg-rose-50 text-rose-600 font-bold py-2.5 rounded-xl text-[10px] hover:bg-rose-100 transition-all active:scale-95 flex items-center justify-center gap-1.5"
+                              >
+                                <XCircle className="w-3.5 h-3.5" /> Student Missed
+                              </button>
+                              <button 
+                                onClick={() => bookingService.updateAttendance(booking.id.toString(), 'not_conducted', 'completed')}
+                                className="flex-1 bg-slate-100 text-slate-600 font-bold py-2.5 rounded-xl text-[10px] hover:bg-slate-200 transition-all active:scale-95 flex items-center justify-center gap-1.5"
+                              >
+                                <AlertCircle className="w-3.5 h-3.5" /> Not Conducted
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </motion.div>
           ))}
         </AnimatePresence>
@@ -341,8 +373,8 @@ export function Bookings() {
             allBookings={bookings}
             availability={manualSlots}
             onClose={handleRescheduleClose}
-            onConfirm={async (id, date, time) => {
-              await bookingService.reschedule(id.toString(), date, time, profile?.name || 'Tutor', selectedBooking);
+            onConfirm={async (id, date, time, msg, scope) => {
+              await bookingService.reschedule(id.toString(), date, time, profile?.name || 'Tutor', selectedBooking, scope);
               handleRescheduleClose();
             }}
           />

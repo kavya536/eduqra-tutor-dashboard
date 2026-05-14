@@ -37,4 +37,6 @@ export interface TutorProfile {
   subjectsPricing?: any[];
   targetClasses?: string;
   kyc_submitted_at?: any;
+  isPublic?: boolean;
+  reAppliedAt?: string;
 }

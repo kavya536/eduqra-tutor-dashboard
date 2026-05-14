@@ -120,7 +120,7 @@ export function Chat() {
       <div className="flex bg-white rounded-xl md:rounded-3xl atelier-card-shadow overflow-hidden flex-1 border border-surface-variant relative">
         {/* Left Panel - Contacts */}
         <div className={cn(
-          "w-full md:w-[320px] lg:w-[400px] border-r border-surface-variant flex flex-col bg-slate-50/30 transition-all duration-300 shrink-0",
+          "w-full md:w-[280px] lg:w-[320px] border-r border-surface-variant flex flex-col bg-slate-50/30 transition-all duration-300 shrink-0",
           showMobileChat ? "hidden md:flex" : "flex"
         )}>
           <div className="p-3 md:p-4 border-b border-surface-variant flex items-center justify-between bg-white">
@@ -136,7 +136,7 @@ export function Chat() {
                 transition={{ delay: i * 0.05 }}
                 onClick={() => { onContactSelect(contact.id); setShowMobileChat(true); }}
                 className={cn(
-                  "w-full flex items-center gap-2 md:gap-3 p-2 md:p-3 rounded-lg md:rounded-xl transition-all text-left group relative",
+                  "w-full flex items-center gap-2 p-1.5 md:p-2 rounded-lg md:rounded-xl transition-all text-left group relative",
                   activeContactId === contact.id 
                     ? "bg-primary/10 shadow-sm" 
                     : "hover:bg-slate-100/80"
@@ -147,7 +147,7 @@ export function Chat() {
                 )}
                 <div className="relative shrink-0">
                   <div className={cn(
-                    "w-10 h-10 md:w-12 md:h-12 rounded-full font-black flex items-center justify-center text-xs md:text-sm transition-transform group-hover:scale-105 overflow-hidden",
+                    "w-8 h-8 md:w-10 md:h-10 rounded-full font-black flex items-center justify-center text-[10px] md:text-xs transition-transform group-hover:scale-105 overflow-hidden",
                     activeContactId === contact.id ? "bg-primary/20 text-primary" : "bg-slate-200 text-slate-500"
                   )}>
                     {(contact as any).avatar ? (
@@ -333,7 +333,7 @@ export function Chat() {
                               )}
                             </div>
                             <div className={cn(
-                              "px-3 py-2 md:px-4 md:py-3 rounded-2xl shadow-sm relative transition-all w-fit",
+                              "px-2.5 py-1.5 md:px-3.5 md:py-2.5 rounded-2xl shadow-sm relative transition-all w-fit",
                               isMe ? "bg-primary text-white rounded-tr-none shadow-primary/20" : "bg-white text-on-surface rounded-tl-none border border-slate-100",
                               msg.deletedForEveryone && "bg-slate-100 text-slate-400 border-none shadow-none"
                             )}>

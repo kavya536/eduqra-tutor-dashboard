@@ -28,5 +28,5 @@ export interface Review {
   studentName?: string;
 }
 
-export type PageId = 'dashboard' | 'chat' | 'availability' | 'pricing' | 'bookings' | 'notes' | 'reviews' | 'kyc' | 'settings' | 'profile' | 'live-class' | 'projects';
+export type PageId = 'dashboard' | 'chat' | 'availability' | 'pricing' | 'bookings' | 'notes' | 'assignments' | 'reviews' | 'kyc' | 'settings' | 'profile' | 'live-class' | 'projects';
 

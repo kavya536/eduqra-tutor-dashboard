@@ -105,7 +105,19 @@ export const tutorService = {
         return preferences.updates !== false;
       });
 
-      filtered.sort((a: any, b: any) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+      const getMs = (item: any) => {
+         if (item.createdAt?.toMillis) return item.createdAt.toMillis();
+         if (item.createdAt?.seconds) return item.createdAt.seconds * 1000;
+         if (item.timestamp?.toMillis) return item.timestamp.toMillis();
+         if (item.timestamp?.seconds) return item.timestamp.seconds * 1000;
+         if (item.time) {
+           const d = new Date(item.time);
+           if (!isNaN(d.getTime())) return d.getTime();
+         }
+         return Date.now(); // Fallback for "Just now" or invalid strings to put them at top
+      };
+      
+      filtered.sort((a: any, b: any) => getMs(b) - getMs(a));
       callback(filtered);
     });
   },

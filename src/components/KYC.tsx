@@ -1,4 +1,4 @@
-import { ShieldCheck, Upload, CheckCircle2, AlertCircle, Plus, Trash2, Landmark, DollarSign, ArrowRight, RefreshCw, XCircle, CreditCard, ChevronRight, Lock, User } from 'lucide-react';
+import { ShieldCheck, Upload, CheckCircle2, AlertCircle, Plus, Trash2, Landmark, DollarSign, ArrowRight, RefreshCw, XCircle, CreditCard, ChevronRight, Lock, User, Camera, GraduationCap, Award } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useState, ReactNode, useRef, ChangeEvent } from 'react';
 import { cn } from '../lib/utils';
@@ -35,28 +35,42 @@ export function KYC() {
     profile?.status === 'approved' ? 'verified' : (profile?.status === 'pending' ? 'pending' : 'not_submitted')
   );
   
-  const [idFile, setIdFile] = useState<string | null>(null);
+  const [idFile, setIdFile] = useState<File | null>(null);
   const [idFilePreview, setIdFilePreview] = useState<string | null>(profile?.documents?.identityProof || null);
-  const [photoFile, setPhotoFile] = useState<string | null>(null);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoFilePreview, setPhotoFilePreview] = useState<string | null>(profile?.documents?.profileImage || null);
+  const [degreeFile, setDegreeFile] = useState<File | null>(null);
+  const [degreeFilePreview, setDegreeFilePreview] = useState<string | null>(profile?.documents?.degreeCertificate || null);
+  const [expFile, setExpFile] = useState<File | null>(null);
+  const [expFilePreview, setExpFilePreview] = useState<string | null>(profile?.documents?.experienceCertificate || null);
+  
   const idInputRef = useRef<HTMLInputElement>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
+  const degreeInputRef = useRef<HTMLInputElement>(null);
+  const expInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileChange = (e: ChangeEvent<HTMLInputElement>, type: 'id' | 'photo') => {
+  const handleFileChange = (e: ChangeEvent<HTMLInputElement>, type: 'id' | 'photo' | 'degree' | 'experience') => {
     const file = e.target.files?.[0];
     if (file) {
       const preview = URL.createObjectURL(file);
       if (type === 'id') {
-        setIdFile(file.name);
+        setIdFile(file);
         setIdFilePreview(preview);
-      } else {
-        setPhotoFile(file.name);
+      } else if (type === 'photo') {
+        setPhotoFile(file);
         setPhotoFilePreview(preview);
+      } else if (type === 'degree') {
+        setDegreeFile(file);
+        setDegreeFilePreview(preview);
+      } else if (type === 'experience') {
+        setExpFile(file);
+        setExpFilePreview(preview);
       }
       setError(null);
     }
   };
   const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [withdrawStatus, setWithdrawStatus] = useState<'idle' | 'processing' | 'success' | 'failed'>('idle');
   const [balance, setBalance] = useState(1450.00);
   const [paymentMethods, setPaymentMethods] = useState([
@@ -72,26 +86,34 @@ export function KYC() {
   const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async () => {
-    if (!idFile && !photoFile) {
-      setError("Please upload both ID proof and profile photo.");
-    } else if (!idFile) {
-      setError("Please upload ID Proof (Aadhaar/PAN).");
-    } else if (!photoFile) {
-      setError("Please upload Profile Photo.");
-    } else {
+    if (!idFile && !idFilePreview) {
+      setError("Please upload ID proof (Aadhaar/PAN).");
+      return;
+    }
+    if (!photoFile && !photoFilePreview) {
+      setError("Please upload profile photo.");
+      return;
+    }
+
+    try {
       setError(null);
-      setKycStatus('pending');
+      setIsSubmitting(true);
       
-      try {
-        await authService.updateProfile(profile.id, {
-          status: 'pending',
-          kyc_submitted_at: new Date().toISOString()
-        });
-      } catch (err) {
-        console.error(err);
-        setError("Failed to submit documents");
-        setKycStatus('not_submitted');
-      }
+      const formData = new FormData();
+      formData.append('tutorId', profile.id);
+      if (idFile) formData.append('identityProof', idFile);
+      if (photoFile) formData.append('profileImage', photoFile);
+      if (degreeFile) formData.append('degreeCertificate', degreeFile);
+      if (expFile) formData.append('experienceCertificate', expFile);
+
+      await authService.updateKYC(formData);
+      
+      setKycStatus('pending');
+      setIsSubmitting(false);
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || "Failed to upload documents");
+      setIsSubmitting(false);
     }
   };
 
@@ -138,7 +160,7 @@ export function KYC() {
             </span>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4">
             <div className="space-y-3">
               <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 ml-1">ID Proof (Aadhaar / PAN)</label>
               <input 
@@ -154,12 +176,12 @@ export function KYC() {
                 onClick={() => kycStatus === 'not_submitted' && idInputRef.current?.click()}
                 className={cn(
                   "border-2 border-dashed rounded-2xl p-8 flex flex-col items-center text-center cursor-pointer transition-all h-[160px] justify-center relative group",
-                  idFile ? "border-primary bg-primary/5" : "border-slate-100 bg-slate-50/50 hover:border-primary hover:bg-white"
+                  (idFile || idFilePreview) ? "border-primary bg-primary/5" : "border-slate-100 bg-slate-50/50 hover:border-primary hover:bg-white"
                 )}
               >
-                {idFile ? (
+                {(idFile || idFilePreview) ? (
                   <div className="flex flex-col items-center w-full">
-                    {idFilePreview && !idFile.toLowerCase().endsWith('.pdf') ? (
+                    {idFilePreview ? (
                       <div className="relative mb-3">
                         <img src={idFilePreview} className="w-16 h-16 object-cover rounded-xl shadow-lg border-2 border-white ring-4 ring-primary/5" alt="ID Preview" />
                         <div className="absolute -right-1.5 -top-1.5 bg-primary text-white p-0.5 rounded-full shadow-md">
@@ -169,7 +191,7 @@ export function KYC() {
                     ) : (
                       <CheckCircle2 className="w-10 h-10 text-primary mb-3" />
                     )}
-                    <p className="text-[11px] font-black text-slate-800 leading-tight px-4 truncate w-full">{idFile}</p>
+                    <p className="text-[11px] font-black text-slate-800 leading-tight px-4 truncate w-full">{idFile?.name || 'Document Ready'}</p>
                     {kycStatus === 'not_submitted' && (
                       <span className="absolute bottom-3 text-[8px] font-black uppercase tracking-[0.2em] text-primary opacity-0 group-hover:opacity-100 transition-opacity">
                         Click to Change
@@ -179,7 +201,7 @@ export function KYC() {
                 ) : (
                   <>
                     <Upload className="w-10 h-10 text-slate-200 mb-3" />
-                    <p className="text-[11px] font-black text-slate-800 leading-tight">Upload Document</p>
+                    <p className="text-[11px] font-black text-slate-800 leading-tight">Upload ID Proof</p>
                   </>
                 )}
               </motion.div>
@@ -200,10 +222,10 @@ export function KYC() {
                 onClick={() => kycStatus === 'not_submitted' && photoInputRef.current?.click()}
                 className={cn(
                   "border-2 border-dashed rounded-2xl p-8 flex flex-col items-center text-center cursor-pointer transition-all h-[160px] justify-center relative group",
-                  photoFile ? "border-primary bg-primary/5" : "border-slate-100 bg-slate-50/50 hover:border-primary hover:bg-white"
+                  (photoFile || photoFilePreview) ? "border-primary bg-primary/5" : "border-slate-100 bg-slate-50/50 hover:border-primary hover:bg-white"
                 )}
               >
-                {photoFile ? (
+                {(photoFile || photoFilePreview) ? (
                   <div className="flex flex-col items-center w-full">
                     {photoFilePreview ? (
                       <div className="relative mb-3">
@@ -215,7 +237,7 @@ export function KYC() {
                     ) : (
                       <CheckCircle2 className="w-10 h-10 text-primary mb-3" />
                     )}
-                    <p className="text-[11px] font-black text-slate-800 leading-tight px-4 truncate w-full">{photoFile}</p>
+                    <p className="text-[11px] font-black text-slate-800 leading-tight px-4 truncate w-full">{photoFile?.name || 'Photo Ready'}</p>
                     {kycStatus === 'not_submitted' && (
                       <span className="absolute bottom-3 text-[8px] font-black uppercase tracking-[0.2em] text-primary opacity-0 group-hover:opacity-100 transition-opacity">
                         Click to Change
@@ -224,8 +246,96 @@ export function KYC() {
                   </div>
                 ) : (
                   <>
-                    <Upload className="w-10 h-10 text-slate-200 mb-3" />
+                    <Camera className="w-10 h-10 text-slate-200 mb-3" />
                     <p className="text-[11px] font-black text-slate-800 leading-tight">Upload Photo</p>
+                  </>
+                )}
+              </motion.div>
+            </div>
+
+            <div className="space-y-3">
+              <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 ml-1">Degree Certificate</label>
+              <input 
+                type="file" 
+                ref={degreeInputRef} 
+                onChange={(e) => handleFileChange(e, 'degree')} 
+                className="hidden" 
+                accept=".pdf,image/*"
+              />
+              <motion.div 
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => kycStatus === 'not_submitted' && degreeInputRef.current?.click()}
+                className={cn(
+                  "border-2 border-dashed rounded-2xl p-8 flex flex-col items-center text-center cursor-pointer transition-all h-[160px] justify-center relative group",
+                  (degreeFile || degreeFilePreview) ? "border-primary bg-primary/5" : "border-slate-100 bg-slate-50/50 hover:border-primary hover:bg-white"
+                )}
+              >
+                {(degreeFile || degreeFilePreview) ? (
+                  <div className="flex flex-col items-center w-full">
+                    <div className="relative mb-3">
+                      <div className="w-16 h-16 bg-white rounded-xl shadow-lg border-2 border-white ring-4 ring-primary/5 flex items-center justify-center text-primary">
+                        <GraduationCap size={24} />
+                      </div>
+                      <div className="absolute -right-1.5 -top-1.5 bg-primary text-white p-0.5 rounded-full shadow-md">
+                        <CheckCircle2 size={12} />
+                      </div>
+                    </div>
+                    <p className="text-[11px] font-black text-slate-800 leading-tight px-4 truncate w-full">{degreeFile?.name || 'Certificate Ready'}</p>
+                    {kycStatus === 'not_submitted' && (
+                      <span className="absolute bottom-3 text-[8px] font-black uppercase tracking-[0.2em] text-primary opacity-0 group-hover:opacity-100 transition-opacity">
+                        Click to Change
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  <>
+                    <GraduationCap className="w-10 h-10 text-slate-200 mb-3" />
+                    <p className="text-[11px] font-black text-slate-800 leading-tight">Degree Certificate</p>
+                  </>
+                )}
+              </motion.div>
+            </div>
+
+            <div className="space-y-3">
+              <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 ml-1">Experience Certificate</label>
+              <input 
+                type="file" 
+                ref={expInputRef} 
+                onChange={(e) => handleFileChange(e, 'experience')} 
+                className="hidden" 
+                accept=".pdf,image/*"
+              />
+              <motion.div 
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => kycStatus === 'not_submitted' && expInputRef.current?.click()}
+                className={cn(
+                  "border-2 border-dashed rounded-2xl p-8 flex flex-col items-center text-center cursor-pointer transition-all h-[160px] justify-center relative group",
+                  (expFile || expFilePreview) ? "border-primary bg-primary/5" : "border-slate-100 bg-slate-50/50 hover:border-primary hover:bg-white"
+                )}
+              >
+                {(expFile || expFilePreview) ? (
+                  <div className="flex flex-col items-center w-full">
+                    <div className="relative mb-3">
+                      <div className="w-16 h-16 bg-white rounded-xl shadow-lg border-2 border-white ring-4 ring-primary/5 flex items-center justify-center text-primary">
+                        <Award size={24} />
+                      </div>
+                      <div className="absolute -right-1.5 -top-1.5 bg-primary text-white p-0.5 rounded-full shadow-md">
+                        <CheckCircle2 size={12} />
+                      </div>
+                    </div>
+                    <p className="text-[11px] font-black text-slate-800 leading-tight px-4 truncate w-full">{expFile?.name || 'Certificate Ready'}</p>
+                    {kycStatus === 'not_submitted' && (
+                      <span className="absolute bottom-3 text-[8px] font-black uppercase tracking-[0.2em] text-primary opacity-0 group-hover:opacity-100 transition-opacity">
+                        Click to Change
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  <>
+                    <Award className="w-10 h-10 text-slate-200 mb-3" />
+                    <p className="text-[11px] font-black text-slate-800 leading-tight">Exp. Certificate</p>
                   </>
                 )}
               </motion.div>
@@ -245,7 +355,7 @@ export function KYC() {
 
           <button 
             onClick={handleSubmit}
-            disabled={kycStatus !== 'not_submitted'}
+            disabled={kycStatus !== 'not_submitted' || isSubmitting}
             className={cn(
               "w-full font-black py-5 rounded-2xl transition-all shadow-xl text-[11px] uppercase tracking-[0.2em]",
               kycStatus === 'not_submitted' 
@@ -253,7 +363,11 @@ export function KYC() {
                 : "bg-slate-100 text-slate-400 cursor-not-allowed shadow-none"
             )}
           >
-            {kycStatus === 'not_submitted' ? 'Submit for Verification' : 'Documents Under Review'}
+            {isSubmitting ? (
+              <span className="flex items-center justify-center gap-2">
+                <RefreshCw size={14} className="animate-spin" /> Uploading Documents...
+              </span>
+            ) : kycStatus === 'not_submitted' ? 'Submit for Verification' : 'Documents Under Review'}
           </button>
         </div>
 

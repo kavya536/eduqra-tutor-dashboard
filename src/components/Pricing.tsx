@@ -8,7 +8,7 @@ import { doc, updateDoc, onSnapshot } from 'firebase/firestore';
 interface PricingEntry {
   id: string;
   subject: string;
-  type: 'hourly' | 'monthly' | 'course';
+  type: 'hourly' | 'course';
   hourlyRate?: number;
   baseAmount: number; 
   durationDays?: number;
@@ -118,6 +118,7 @@ export function Pricing() {
   const targetClasses = profile?.targetClasses || '';
   const [entries, setEntries] = useState<PricingEntry[]>([]);
   const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [validationError, setValidationError] = useState('');
   const [loading, setLoading] = useState(true);
   const [isAddingCustom, setIsAddingCustom] = useState<string | null>(null);
   const [customSubject, setCustomSubject] = useState('');
@@ -143,11 +144,11 @@ export function Pricing() {
   }, [profile]);
 
   const addEntry = () => {
-    const defaultType = isGraduate ? 'monthly' : 'hourly';
+    // Defaulting all to 'hourly' as per request to remove 'monthly'
     setEntries([...entries, { 
       id: Date.now().toString(), 
       subject: '', 
-      type: defaultType, 
+      type: 'hourly', 
       hourlyRate: 0, 
       baseAmount: 0, 
       totalAmountWithFees: 0 
@@ -162,8 +163,8 @@ export function Pricing() {
     setEntries(entries.map(e => {
       if (e.id === id) {
         const updated = { ...e, ...updates };
-        if (updates.subject) updated.subject = normalizeSubject(updates.subject);
-        if (updated.type === 'hourly' || updated.type === 'monthly') {
+        if (updates.subject) updated.subject = updates.subject;
+        if (updated.type === 'hourly') {
           if (updates.hourlyRate !== undefined) {
              updated.baseAmount = Number(updates.hourlyRate) * 30;
           }
@@ -177,28 +178,80 @@ export function Pricing() {
 
   const handleSave = async () => {
     if (!tutorId) return;
-    if (entries.length === 0 || entries.some(e => !e.subject || (e.type === 'hourly' && e.hourlyRate === 0) || (e.type === 'course' && e.baseAmount === 0))) {
+
+    if (entries.length === 0) {
+      setValidationError('Add at least one subject to update');
       setStatus('error');
       setTimeout(() => setStatus('idle'), 3000);
       return;
     }
+
+    // Strict Field Validation
+    for (const entry of entries) {
+      const subName = entry.subject ? getSubjectName(entry.subject) : 'Selected subject';
+      
+      if (!entry.subject) {
+        setValidationError('Subject is required for all entries');
+        setStatus('error');
+        setTimeout(() => setStatus('idle'), 3000);
+        return;
+      }
+      
+      if (entry.type === 'hourly') {
+        if (!entry.hourlyRate || entry.hourlyRate <= 0) {
+          setValidationError(`Hourly rate is required for ${subName}`);
+          setStatus('error');
+          setTimeout(() => setStatus('idle'), 3000);
+          return;
+        }
+      } else if (entry.type === 'course') {
+        if (!entry.baseAmount || entry.baseAmount <= 0) {
+          setValidationError(`Course amount is required for ${subName}`);
+          setStatus('error');
+          setTimeout(() => setStatus('idle'), 3000);
+          return;
+        }
+        if (!entry.durationDays || entry.durationDays <= 0) {
+          setValidationError(`Completion timeline is required for ${subName}`);
+          setStatus('error');
+          setTimeout(() => setStatus('idle'), 3000);
+          return;
+        }
+      }
+    }
+
+    // Optimistic UI: Set success immediately
+    setStatus('success');
+    
     try {
+      // Logic for visibility in student search: Needs UPI and Pricing
+      const isPublic = !!profile?.upiId && entries.length > 0;
+
       await authService.updateProfile(tutorId, {
         pricingEntries: entries,
-        price: entries[0].hourlyRate || (entries[0].baseAmount / 30),
-        subjects: entries.map(e => e.subject),
-        subjectsPricing: entries.map(e => ({
-          subject: e.subject,
-          price: e.baseAmount,
-          type: e.type,
-          durationDays: e.durationDays || null,
-          totalPrice: e.totalAmountWithFees
-        }))
+        price: entries.find(e => e.type === 'hourly')?.hourlyRate || (entries[0]?.baseAmount / 30) || 0,
+        subjects: Array.from(new Set(entries.map(e => e.subject))),
+        subjectsPricing: Array.from(new Set(entries.map(e => e.subject))).map(sub => {
+          const subEntries = entries.filter(e => e.subject === sub);
+          const course = subEntries.find(e => e.type === 'course');
+          const hourly = subEntries.find(e => e.type === 'hourly');
+          return {
+            subject: sub,
+            price: course?.baseAmount || 0,
+            hourlyRate: hourly?.hourlyRate || 0,
+            type: (course && hourly) ? 'both' : (course ? 'course' : 'hourly'),
+            durationDays: course?.durationDays || null,
+            totalPrice: course?.totalAmountWithFees || (hourly?.totalAmountWithFees || 0)
+          };
+        }),
+        isPublic: isPublic
       });
-      setStatus('success');
+      // Keep success status for a while
       setTimeout(() => setStatus('idle'), 3000);
     } catch (err) {
+      console.error("Pricing update failed:", err);
       setStatus('error');
+      setTimeout(() => setStatus('idle'), 4000);
     }
   };
 
@@ -229,7 +282,7 @@ export function Pricing() {
   if (loading) return <div className="p-20 text-center font-black text-[#0047AB] animate-pulse uppercase tracking-[0.2em]">Syncing Pricing...</div>;
 
   return (
-    <div className="space-y-6 max-w-6xl mx-auto py-4 px-2 md:px-0">
+    <div className="space-y-6 py-4 px-2 md:px-0">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-5 md:p-8 rounded-[2rem] md:rounded-[2.5rem] border border-slate-100 shadow-sm">
         <div>
           <div className="flex items-center gap-3 mb-1">
@@ -268,10 +321,13 @@ export function Pricing() {
             animate={{ opacity: 1, scale: 1 }}
             className="group bg-white border-2 border-slate-100 rounded-[2rem] md:rounded-[3rem] p-5 md:p-8 relative flex flex-col h-full hover:border-[#0047AB] hover:shadow-2xl hover:shadow-blue-900/5 transition-all"
           >
-            <div className="absolute top-8 right-8 flex gap-2">
-               <div className="px-3 py-1 bg-slate-50 border border-slate-100 rounded-full text-[8px] font-black text-slate-400 uppercase tracking-widest">Entry #{index + 1}</div>
-               <button onClick={() => removeEntry(entry.id)} className="text-slate-300 hover:text-rose-500 transition-colors">
-                 <Trash2 size={18} />
+            <div className="absolute top-5 right-5 flex items-center gap-2 z-10">
+               <div className="px-3 py-1 bg-slate-50 border border-slate-100 rounded-full text-[8px] font-black text-slate-400 uppercase tracking-widest shadow-sm">Entry #{index + 1}</div>
+               <button 
+                 onClick={() => removeEntry(entry.id)} 
+                 className="p-2 bg-white border border-slate-100 rounded-xl text-slate-500 hover:text-rose-600 hover:border-rose-100 hover:bg-rose-50 transition-all shadow-sm group/del"
+               >
+                 <Trash2 size={16} className="transition-transform group-hover/del:scale-110" />
                </button>
             </div>
 
@@ -281,7 +337,6 @@ export function Pricing() {
                 {isGraduate ? (
                   <>
                     <button onClick={() => updateEntry(entry.id, { type: 'hourly' })} className={cn("flex-1 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all", entry.type === 'hourly' ? "bg-[#0047AB] text-white shadow-lg" : "text-slate-400")}>Hour Rate</button>
-                    <button onClick={() => updateEntry(entry.id, { type: 'monthly' })} className={cn("flex-1 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all", entry.type === 'monthly' ? "bg-[#0047AB] text-white shadow-lg" : "text-slate-400")}>Monthly Rate</button>
                     <button onClick={() => updateEntry(entry.id, { type: 'course' })} className={cn("flex-1 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all", entry.type === 'course' ? "bg-[#0047AB] text-white shadow-lg" : "text-slate-400")}>Course Type</button>
                   </>
                 ) : (
@@ -310,7 +365,7 @@ export function Pricing() {
                       <option value="" disabled>Select Subject...</option>
                       {allowedCategories.map(cat => (
                         <optgroup key={cat} label={cat} className="text-[#0047AB] font-black bg-white">
-                          {SUBJECT_LISTS[cat].map(s => <option key={s} value={normalizeSubject(s)} className="text-slate-700">{s}</option>)}
+                          {SUBJECT_LISTS[cat].map(s => <option key={s} value={s} className="text-slate-700">{s}</option>)}
                         </optgroup>
                       ))}
                       {existingCustoms.length > 0 && (
@@ -357,7 +412,7 @@ export function Pricing() {
 
               {/* Input Fields */}
               <div className="space-y-6">
-                {(entry.type === 'hourly' || entry.type === 'monthly') ? (
+                {(entry.type === 'hourly') ? (
                   <div className="space-y-4">
                     <div className="space-y-2">
                       <label className="text-[9px] font-black text-slate-300 uppercase tracking-[0.2em] ml-1">Hourly Rate (Your Share)</label>
@@ -372,10 +427,11 @@ export function Pricing() {
                         />
                       </div>
                     </div>
-                    <div className="bg-[#0047AB]/5 p-4 sm:p-6 rounded-[1.5rem] md:rounded-[2rem] border border-[#0047AB]/10 text-center">
+                    {/* Net Monthly Payout display hidden as per request */}
+                    {/* <div className="bg-[#0047AB]/5 p-4 sm:p-6 rounded-[1.5rem] md:rounded-[2rem] border border-[#0047AB]/10 text-center">
                        <p className="text-[8px] font-black text-[#0047AB]/50 uppercase tracking-widest mb-1.5">Net Monthly Payout</p>
                        <h3 className="text-xl sm:text-3xl font-black text-[#0047AB]">₹{entry.baseAmount.toLocaleString('en-IN')}</h3>
-                    </div>
+                    </div> */}
                   </div>
                 ) : (
                   <div className="space-y-6">
@@ -400,9 +456,8 @@ export function Pricing() {
                           placeholder="e.g. 60"
                           value={entry.durationDays || ''}
                           onChange={(e) => updateEntry(entry.id, { durationDays: Number(e.target.value) })}
-                          className="w-full bg-slate-50 border-2 border-slate-100 p-5 rounded-2xl font-black text-lg text-slate-800 outline-none focus:border-[#0047AB] transition-all"
+                          className="w-full bg-slate-50 border-2 border-slate-100 p-5 rounded-2xl font-black text-lg text-slate-800 outline-none focus:border-[#0047AB] transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" 
                         />
-                        <Calendar size={18} className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-300" />
                       </div>
                     </div>
                   </div>
@@ -420,12 +475,12 @@ export function Pricing() {
               <AnimatePresence>
               {status === 'success' && (
                 <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="flex items-center justify-center gap-2 text-[9px] font-black text-emerald-600 uppercase mb-3 bg-emerald-50 py-2 rounded-xl">
-                  <CheckCircle2 size={12} /> Pricing Structure Secured
+                  <CheckCircle2 size={12} /> Updated Successfully
                 </motion.div>
               )}
               {status === 'error' && (
-                <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="flex items-center justify-center gap-2 text-[9px] font-black text-rose-600 uppercase mb-3 bg-rose-50 py-2 rounded-xl">
-                  <AlertCircle size={12} /> Add at least one subject to update
+                <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="flex items-center justify-center gap-2 text-[9px] font-black text-rose-600 uppercase mb-3 bg-rose-50 py-2 px-4 rounded-xl text-center">
+                  <AlertCircle size={12} className="shrink-0" /> {validationError}
                 </motion.div>
               )}
               </AnimatePresence>

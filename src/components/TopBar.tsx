@@ -46,7 +46,9 @@ export function TopBar() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const isProfileIncomplete = !profile?.upiId || !Array.isArray(profile?.subjects) || profile.subjects.length === 0;
+  const isUpiMissing = !profile?.upiId;
+  const isPricingMissing = !Array.isArray(profile?.pricingEntries) || profile.pricingEntries.length === 0;
+  const isProfileIncomplete = isUpiMissing || isPricingMissing;
 
   return (
     <header className="sticky top-0 right-0 w-full z-40 bg-background/80 backdrop-blur-3xl shadow-sm border-b border-surface-variant/50 flex justify-between items-center px-4 md:px-10 py-3 md:py-4 transition-all gap-2 md:gap-4">
@@ -183,11 +185,13 @@ export function TopBar() {
 
         {isProfileIncomplete && (
           <button
-            onClick={() => onPageChange('profile')}
+            onClick={() => onPageChange(isUpiMissing ? 'profile' : 'pricing')}
             className="animate-pulse flex items-center gap-2 bg-rose-50 hover:bg-rose-100 text-rose-600 px-4 py-2 rounded-xl text-[10px] uppercase font-black tracking-widest transition-colors border border-rose-200"
           >
             <AlertCircle className="w-4 h-4" />
-            <span className="hidden sm:inline">Profile Hidden: Subjects & UPI ID Required</span>
+            <span className="hidden sm:inline">
+              Profile Hidden: {isUpiMissing && isPricingMissing ? 'UPI ID & Pricing Required' : isUpiMissing ? 'UPI ID Required' : 'Pricing & Subjects Required'}
+            </span>
             <span className="sm:hidden">Setup Required</span>
           </button>
         )}

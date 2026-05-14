@@ -15,15 +15,18 @@ interface ChatState {
 
 export const useChatStore = create<ChatState>((set) => ({
   contacts: [],
-  activeChatId: null,
+  activeChatId: localStorage.getItem('tutor_active_chat_id'),
   chatMessages: [],
   studentProfiles: {},
   setContacts: (contacts) => set((state) => ({ 
     contacts: typeof contacts === 'function' ? contacts(state.contacts) : contacts 
   })),
-  setActiveChatId: (activeChatId) => set((state) => ({ 
-    activeChatId: typeof activeChatId === 'function' ? activeChatId(state.activeChatId) : activeChatId 
-  })),
+  setActiveChatId: (activeChatId) => set((state) => {
+    const nextId = typeof activeChatId === 'function' ? activeChatId(state.activeChatId) : activeChatId;
+    if (nextId) localStorage.setItem('tutor_active_chat_id', nextId);
+    else localStorage.removeItem('tutor_active_chat_id');
+    return { activeChatId: nextId };
+  }),
   setChatMessages: (chatMessages) => set((state) => ({ 
     chatMessages: typeof chatMessages === 'function' ? chatMessages(state.chatMessages) : chatMessages 
   })),

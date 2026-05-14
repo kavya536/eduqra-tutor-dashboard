@@ -1,4 +1,4 @@
-import { Calendar, Clock, X, Check, Loader2, AlertCircle } from 'lucide-react';
+import { Calendar, Clock, X, Check, Loader2, AlertCircle, BookOpen, XCircle } from 'lucide-react';
 import { Booking, AvailabilitySlot } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { useState, useEffect } from 'react';
@@ -9,7 +9,7 @@ interface RescheduleModalProps {
   allBookings: Booking[];
   availability: AvailabilitySlot[];
   onClose: () => void;
-  onConfirm: (id: any, newDate: string, newTime: string, message?: string) => Promise<void>;
+  onConfirm: (id: any, newDate: string, newTime: string, message?: string, scope?: 'one-day' | 'full-course') => Promise<void>;
 }
 
 export function RescheduleModal({ booking, allBookings, availability, onClose, onConfirm }: RescheduleModalProps) {
@@ -22,6 +22,7 @@ export function RescheduleModal({ booking, allBookings, availability, onClose, o
 
   const [selectedDate, setSelectedDate] = useState<string>(getLocalDateStr(new Date()));
   const [selectedTime, setSelectedTime] = useState<string>('');
+  const [rescheduleScope, setRescheduleScope] = useState<'one-day' | 'full-course'>('one-day');
   const [message, setMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [availableSlots, setAvailableSlots] = useState<string[]>([]);
@@ -92,23 +93,24 @@ export function RescheduleModal({ booking, allBookings, availability, onClose, o
     const currentMins = now.getHours() * 60 + now.getMinutes();
 
     for (const availSlot of matchingAvailability) {
-      const windowStart = parseTimeStr(availSlot.start);
-      const windowEnd = parseTimeStr(availSlot.end);
-      if (!windowStart || !windowEnd || windowEnd <= windowStart) continue;
+      const startMins = parseTimeStr(availSlot.start);
+      const endMins = parseTimeStr(availSlot.end);
+      
+      // Generate sub-slots every 10 minutes within the window
+      for (let slotStartMins = startMins; slotStartMins <= endMins - requiredDurationMins; slotStartMins += 10) {
+        const slotEndMins = slotStartMins + requiredDurationMins;
+        const slotTimeStr = formatMins(slotStartMins);
 
-      for (let time = windowStart; time <= windowEnd - requiredDurationMins; time += 30) {
-        // Don't show past times if today
-        if (isToday && time < currentMins + 30) continue;
+        // Rule 1: Must be in the future (if today)
+        if (isToday && slotStartMins < currentMins + 30) continue;
 
-        const slotEnd = time + requiredDurationMins;
-
-        // Check for conflicts with existing bookings
+        // Rule 2: Must not conflict with tutor's other bookings
         const hasConflict = dayBookings.some(b =>
-          (time < b.end && slotEnd > b.start)
+          (slotStartMins < b.end && slotEndMins > b.start)
         );
 
         if (!hasConflict) {
-          slots.push(formatMins(time));
+          slots.push(slotTimeStr);
         }
       }
     }
@@ -121,7 +123,7 @@ export function RescheduleModal({ booking, allBookings, availability, onClose, o
     if (!selectedDate || !selectedTime) return;
     setIsSubmitting(true);
     try {
-      await onConfirm(booking.id, selectedDate, selectedTime, message);
+      await onConfirm(booking.id, selectedDate, selectedTime, message, rescheduleScope);
       onClose();
     } catch (err) {
       console.error(err);
@@ -131,68 +133,119 @@ export function RescheduleModal({ booking, allBookings, availability, onClose, o
   };
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-start justify-center overflow-y-auto p-4 md:p-6">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 md:p-6">
       <motion.div 
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-slate-900/75"
+        className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
         onClick={onClose}
       />
       
       <motion.div 
-        initial={{ opacity: 0, scale: 0.9, y: 20 }}
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.9, y: 20 }}
-        className="relative w-full max-w-2xl bg-white rounded-[2rem] shadow-3xl border border-white/20 overflow-hidden mt-2 md:mt-6 max-h-[calc(100vh-2rem)] md:max-h-[calc(100vh-4rem)]"
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        className="relative w-full max-w-2xl bg-white rounded-[2.5rem] shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[90vh]"
       >
-        <div className="p-5 md:p-6 overflow-y-auto max-h-[calc(100vh-2rem)] md:max-h-[calc(100vh-4rem)]">
-          <div className="flex items-start justify-between gap-4 mb-5">
-            <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-2xl bg-primary/10 flex items-center justify-center text-primary shrink-0">
-                <Calendar size={22} />
-              </div>
-              <div>
-                <h3 className="text-xl font-black text-slate-800 leading-tight">Reschedule Session</h3>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Update Appointment</p>
-              </div>
+        {/* Header */}
+        <div className="px-8 py-6 border-b border-slate-50 flex items-center justify-between shrink-0 bg-white">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary shrink-0 shadow-sm">
+              <Calendar size={24} />
             </div>
-            <button onClick={onClose} className="p-2 hover:bg-slate-50 rounded-full text-slate-400 transition-colors shrink-0">
-              <X size={20} />
-            </button>
+            <div>
+              <h3 className="text-xl font-black text-slate-900 tracking-tight">Reschedule Session</h3>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Update Student Appointment</p>
+            </div>
           </div>
+          <button 
+            onClick={onClose} 
+            className="w-10 h-10 flex items-center justify-center rounded-2xl bg-slate-50 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-all"
+          >
+            <X size={20} />
+          </button>
+        </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-5">
-            <div className="bg-slate-50 rounded-2xl p-4">
+        {/* Content Area */}
+        <div className="p-8 overflow-y-auto flex-1 custom-scrollbar space-y-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="bg-slate-50/80 rounded-2xl p-5 border border-slate-100 shadow-inner">
               <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Student</span>
-              <p className="text-sm font-bold text-slate-800 mt-2">{booking.name || 'Scholar Student'}</p>
+              <p className="text-sm font-bold text-slate-800 mt-2 flex items-center gap-2">
+                <div className="w-2 h-2 bg-emerald-500 rounded-full" />
+                {booking.name || 'Scholar Student'}
+              </p>
             </div>
-            <div className="bg-slate-50 rounded-2xl p-4 md:col-span-2">
+            <div className="bg-slate-50/80 rounded-2xl p-5 border border-slate-100 shadow-inner">
               <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Current Timing</span>
               <p className="text-sm font-bold text-slate-800 flex items-center gap-2 mt-2">
-                <Clock size={14} className="text-primary shrink-0" /> {new Date(`${booking.date}T00:00:00`).toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })} @ {booking.time}
+                <Clock size={14} className="text-primary shrink-0" /> 
+                {new Date(`${booking.date}T00:00:00`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} @ {booking.time}
               </p>
             </div>
           </div>
 
-          <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-6 bg-amber-50 rounded-2xl border border-amber-100 p-4">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-amber-50/50 rounded-2xl border border-amber-100/50 p-5">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-amber-100 rounded-xl flex items-center justify-center text-amber-600">
+                <BookOpen size={16} />
+              </div>
+              <div>
+                <span className="text-[10px] font-black text-amber-600/50 uppercase tracking-widest">Subject</span>
+                <p className="text-sm font-black text-amber-900 mt-0.5">{booking.subject}</p>
+              </div>
+            </div>
+            <div className="flex gap-3 items-center md:max-w-[280px] bg-white/50 p-3 rounded-xl">
+              <AlertCircle className="text-amber-500 shrink-0" size={16} />
+              <p className="text-[9px] font-bold text-amber-700 leading-tight">
+                Student will receive an instant notification about this change.
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-8">
+            {/* Reschedule Scope Selection */}
             <div>
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Subject</span>
-              <p className="text-sm font-bold text-primary mt-2">{booking.subject}</p>
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 block ml-1">Select Reschedule Mode</label>
+              <div className="grid grid-cols-2 gap-4">
+                <button
+                  onClick={() => setRescheduleScope('one-day')}
+                  className={cn(
+                    "p-5 rounded-2xl border-2 transition-all flex flex-col items-center text-center gap-1 group",
+                    rescheduleScope === 'one-day' 
+                      ? "bg-primary border-primary text-white shadow-xl shadow-primary/20 scale-[1.02]" 
+                      : "bg-slate-50 border-transparent text-slate-600 hover:border-slate-200"
+                  )}
+                >
+                  <div className={cn("p-2 rounded-lg transition-colors", rescheduleScope === 'one-day' ? "bg-white/20" : "bg-primary/10")}>
+                    <Clock size={18} className={rescheduleScope === 'one-day' ? "text-white" : "text-primary"} />
+                  </div>
+                  <span className="text-xs font-black uppercase tracking-wider mt-2">Single Session</span>
+                  <span className={cn("text-[8px] font-bold opacity-60", rescheduleScope === 'one-day' ? "text-white" : "text-slate-400")}>Update only for {selectedDate}</span>
+                </button>
+                <button
+                  onClick={() => setRescheduleScope('full-course')}
+                  className={cn(
+                    "p-5 rounded-2xl border-2 transition-all flex flex-col items-center text-center gap-1 group",
+                    rescheduleScope === 'full-course' 
+                      ? "bg-primary border-primary text-white shadow-xl shadow-primary/20 scale-[1.02]" 
+                      : "bg-slate-50 border-transparent text-slate-600 hover:border-slate-200"
+                  )}
+                >
+                  <div className={cn("p-2 rounded-lg transition-colors", rescheduleScope === 'full-course' ? "bg-white/20" : "bg-primary/10")}>
+                    <Calendar size={18} className={rescheduleScope === 'full-course' ? "text-white" : "text-primary"} />
+                  </div>
+                  <span className="text-xs font-black uppercase tracking-wider mt-2">Entire Course</span>
+                  <span className={cn("text-[8px] font-bold opacity-60", rescheduleScope === 'full-course' ? "text-white" : "text-slate-400")}>Update all future classes</span>
+                </button>
+              </div>
             </div>
-            <div className="flex gap-3 items-start md:max-w-[260px]">
-              <AlertCircle className="text-amber-500 shrink-0 mt-0.5" size={18} />
-              <p className="text-[10px] font-bold text-amber-700 leading-relaxed">
-                Student will be notified immediately of the new time.
-              </p>
-            </div>
-          </div>
 
-          <div className="space-y-6">
             {/* Date Selection */}
             <div>
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 block">1. Select New Date</label>
-              <div className="flex gap-2 overflow-x-auto pb-4 no-scrollbar">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 block ml-1">Choose New Date</label>
+              <div className="flex gap-3 overflow-x-auto pb-4 no-scrollbar px-1">
                 {Array.from({ length: 14 }).map((_, i) => {
                   const d = new Date();
                   d.setDate(d.getDate() + i);
@@ -207,17 +260,17 @@ export function RescheduleModal({ booking, allBookings, availability, onClose, o
                         setSelectedTime('');
                       }}
                       className={cn(
-                        "flex flex-col items-center justify-center min-w-[70px] py-4 rounded-3xl border-2 transition-all shrink-0",
+                        "flex flex-col items-center justify-center min-w-[75px] py-5 rounded-[1.5rem] border-2 transition-all shrink-0",
                         isSelected 
-                          ? "bg-primary border-primary text-white shadow-xl shadow-primary/20 scale-105" 
+                          ? "bg-primary border-primary text-white shadow-xl shadow-primary/20 scale-110 z-10" 
                           : "bg-white border-slate-100 text-slate-600 hover:border-primary/30"
                       )}
                     >
-                      <span className="text-[8px] font-bold uppercase tracking-widest opacity-60 mb-1">
+                      <span className="text-[8px] font-black uppercase tracking-widest opacity-60 mb-1.5">
                         {i === 0 ? 'Today' : d.toLocaleDateString('en-US', { weekday: 'short' })}
                       </span>
-                      <span className="text-sm font-black">{d.getDate()}</span>
-                      <span className="text-[9px] font-bold uppercase">{d.toLocaleDateString('en-US', { month: 'short' })}</span>
+                      <span className="text-base font-black">{d.getDate()}</span>
+                      <span className="text-[9px] font-bold uppercase mt-0.5">{d.toLocaleDateString('en-US', { month: 'short' })}</span>
                     </button>
                   );
                 })}
@@ -226,15 +279,15 @@ export function RescheduleModal({ booking, allBookings, availability, onClose, o
 
             {/* Time Selection */}
             <div>
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 block">2. Select New Time Slot</label>
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 block ml-1">Pick Available Time</label>
               {availableSlots.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                   {availableSlots.map(time => (
                     <button
                       key={time}
                       onClick={() => setSelectedTime(time)}
                       className={cn(
-                        "py-4 px-6 rounded-2xl border-2 text-xs font-black transition-all flex items-center justify-center gap-2",
+                        "py-4 px-4 rounded-2xl border-2 text-[11px] font-black transition-all flex items-center justify-center gap-2",
                         selectedTime === time 
                           ? "bg-primary border-primary text-white shadow-lg shadow-primary/20" 
                           : "bg-white border-slate-100 text-slate-600 hover:border-primary/20"
@@ -246,12 +299,12 @@ export function RescheduleModal({ booking, allBookings, availability, onClose, o
                   ))}
                 </div>
               ) : (
-                <div className="py-12 border-2 border-dashed border-slate-100 rounded-[2rem] text-center">
-                  <X size={32} className="text-slate-200 mx-auto mb-3" />
-                  <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest italic">No Available Slots Found</p>
+                <div className="py-16 border-2 border-dashed border-slate-100 rounded-[2.5rem] text-center bg-slate-50/50">
+                  <XCircle size={32} className="text-slate-200 mx-auto mb-4" />
+                  <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest italic">No matching slots available</p>
                   {hasMatchingAvailabilityWindow && (
-                    <p className="mt-2 text-[10px] font-bold text-amber-600">
-                      Availability exists, but no slot can fit this class duration ({Math.round(bookingDurationMins / 60 * 10) / 10}h).
+                    <p className="mt-3 text-[10px] font-bold text-amber-600 max-w-[240px] mx-auto leading-relaxed">
+                      Your availability windows exist, but none can fit this session duration ({Math.round(bookingDurationMins / 60 * 10) / 10}h).
                     </p>
                   )}
                 </div>
@@ -260,43 +313,44 @@ export function RescheduleModal({ booking, allBookings, availability, onClose, o
 
             {/* Message to Student */}
             <div>
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 block">3. Message to Student (Optional)</label>
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 block ml-1">Reason for Rescheduling (Optional)</label>
               <textarea 
-                className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl p-4 text-sm font-bold outline-none focus:border-primary transition-all min-h-[100px]"
-                placeholder="Briefly explain why the session is being moved..."
+                className="w-full bg-slate-50 border-2 border-slate-100 rounded-[1.5rem] p-5 text-sm font-bold outline-none focus:border-primary/30 focus:bg-white transition-all min-h-[120px] shadow-inner"
+                placeholder="Write a brief message to the student..."
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
               />
             </div>
           </div>
+        </div>
 
-          <div className="mt-6 pt-5 border-t border-slate-100 flex gap-3">
-            <button 
-              onClick={onClose}
-              className="flex-1 py-3.5 text-xs font-black text-slate-400 hover:bg-slate-50 rounded-2xl transition-all"
-            >
-              Cancel
-            </button>
-            <button 
-              onClick={handleConfirm}
-              disabled={!selectedTime || isSubmitting}
-              className={cn(
-                "flex-[1.4] py-3.5 rounded-2xl font-black text-xs transition-all flex items-center justify-center gap-3",
-                selectedTime && !isSubmitting
-                  ? "bg-primary text-white shadow-2xl shadow-primary/20 hover:scale-[1.02] active:scale-95" 
-                  : "bg-slate-100 text-slate-300 cursor-not-allowed"
-              )}
-            >
-              {isSubmitting ? (
-                <Loader2 className="animate-spin" size={18} />
-              ) : (
-                <>
-                  <Check size={18} />
-                  Confirm Reschedule
-                </>
-              )}
-            </button>
-          </div>
+        {/* Footer */}
+        <div className="p-8 border-t border-slate-50 flex gap-4 bg-white shrink-0">
+          <button 
+            onClick={onClose}
+            className="flex-1 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:bg-slate-50 rounded-2xl transition-all"
+          >
+            Discard
+          </button>
+          <button 
+            onClick={handleConfirm}
+            disabled={!selectedTime || isSubmitting}
+            className={cn(
+              "flex-[1.5] py-4 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-all flex items-center justify-center gap-3",
+              selectedTime && !isSubmitting
+                ? "bg-primary text-white shadow-2xl shadow-primary/30 hover:brightness-110 active:scale-95" 
+                : "bg-slate-100 text-slate-300 cursor-not-allowed"
+            )}
+          >
+            {isSubmitting ? (
+              <Loader2 className="animate-spin" size={18} />
+            ) : (
+              <>
+                <Check size={18} />
+                Finalize New Schedule
+              </>
+            )}
+          </button>
         </div>
       </motion.div>
     </div>

@@ -10,7 +10,7 @@ export function useChatListener() {
   useEffect(() => {
     if (!profile?.id) return;
 
-    const unsub = chatService.subscribeToChats(profile.id, studentProfiles, (chatList) => {
+    const unsub = chatService.subscribeToChats(profile, studentProfiles, (chatList) => {
       setContacts(prev => {
         return chatList.map(chat => {
           const existing = prev.find(p => p.id === chat.id);

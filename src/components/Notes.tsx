@@ -212,18 +212,18 @@ export function Notes() {
   };
 
   const handleDelete = async (noteId: string) => {
-    if (!confirm("Are you sure you want to delete this note?")) return;
     try {
       await notesService.deleteNote(noteId);
+      setDeletingId(null);
     } catch (error) {
       console.error("Error deleting note:", error);
     }
   };
 
   const handleDeletePoll = async (pollId: string) => {
-    if (!confirm("Delete this poll?")) return;
     try {
       await pollService.deletePoll(pollId);
+      setDeletingPollId(null);
     } catch (err) {
       console.error(err);
     }
@@ -293,6 +293,8 @@ export function Notes() {
   const [viewingNote, setViewingNote] = useState<Note | null>(null);
   const [viewUrl, setViewUrl] = useState<string>('');
   const [zoomScale, setZoomScale] = useState(0.9);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deletingPollId, setDeletingPollId] = useState<string | null>(null);
 
   useEffect(() => {
     if (viewingNote && viewingNote.fileData) {
@@ -396,7 +398,7 @@ export function Notes() {
                   initial={{ opacity: 0, y: -20 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -20 }}
-                  className="bg-white p-6 md:p-8 rounded-[2rem] border border-surface-variant atelier-card-shadow max-w-2xl mb-8"
+                  className="bg-white p-6 md:p-8 rounded-[2rem] border border-surface-variant atelier-card-shadow mb-8"
                 >
                   <form onSubmit={handleAddNote} className="space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -567,12 +569,40 @@ export function Notes() {
                         <p className="text-[10px] font-black text-primary/60 uppercase tracking-widest">{note.subject}</p>
                       </div>
                     </div>
-                    <button 
-                      onClick={() => handleDelete(note.id)}
-                      className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
-                    >
-                      <Trash2 size={16} />
-                    </button>
+                    <div className="flex items-center gap-1.5 relative overflow-hidden">
+                      <AnimatePresence mode="wait">
+                        {deletingId === note.id ? (
+                          <motion.div 
+                            initial={{ width: 0, opacity: 0 }}
+                            animate={{ width: 'auto', opacity: 1 }}
+                            exit={{ width: 0, opacity: 0 }}
+                            className="flex items-center gap-1.5 bg-rose-50 px-2 py-1 rounded-lg border border-rose-100"
+                          >
+                            <span className="text-[8px] font-black text-rose-500 uppercase tracking-tighter mr-1">Delete?</span>
+                            <button 
+                              onClick={() => setDeletingId(null)}
+                              className="px-2 py-1 bg-slate-100 text-slate-500 rounded text-[7px] font-black uppercase tracking-widest hover:bg-slate-200 transition-all"
+                            >
+                              No
+                            </button>
+                            <button 
+                              onClick={() => handleDelete(note.id)}
+                              className="px-2 py-1 bg-rose-500 text-white rounded text-[7px] font-black uppercase tracking-widest hover:bg-rose-600 transition-all"
+                            >
+                              Yes
+                            </button>
+                          </motion.div>
+                        ) : (
+                          <button 
+                            onClick={() => setDeletingId(note.id)}
+                            className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-300 hover:bg-rose-50 hover:text-rose-500 transition-all duration-300"
+                            title="Delete Note"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        )}
+                      </AnimatePresence>
+                    </div>
                   </div>
 
                   <div className="px-5 py-3 flex items-center gap-3 text-on-surface-variant/60 border-b border-gray-50 bg-slate-50/30">
@@ -640,7 +670,7 @@ export function Notes() {
                   initial={{ opacity: 0, y: -20 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -20 }}
-                  className="bg-white p-6 md:p-8 rounded-[2rem] border border-surface-variant atelier-card-shadow max-w-2xl mb-8"
+                  className="bg-white p-6 md:p-8 rounded-[2rem] border border-surface-variant atelier-card-shadow mb-8"
                 >
                   <form onSubmit={handleAddPoll} className="space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -779,12 +809,40 @@ export function Notes() {
                           <h3 className="text-sm font-black text-on-surface line-clamp-2 mt-0.5">{poll.question}</h3>
                         </div>
                       </div>
-                      <button 
-                        onClick={() => handleDeletePoll(poll.id)}
-                        className="p-2 text-slate-200 hover:text-red-500 transition-colors"
-                      >
-                        <Trash2 size={16} />
-                      </button>
+                      <div className="flex items-center gap-1.5">
+                        <AnimatePresence mode="wait">
+                          {deletingPollId === poll.id ? (
+                            <motion.div 
+                              initial={{ width: 0, opacity: 0 }}
+                              animate={{ width: 'auto', opacity: 1 }}
+                              exit={{ width: 0, opacity: 0 }}
+                              className="flex items-center gap-1.5 bg-rose-50 px-2 py-1 rounded-lg border border-rose-100"
+                            >
+                              <span className="text-[8px] font-black text-rose-500 uppercase tracking-tighter mr-1">Delete?</span>
+                              <button 
+                                onClick={() => setDeletingPollId(null)}
+                                className="px-2 py-1 bg-slate-100 text-slate-500 rounded text-[7px] font-black uppercase tracking-widest hover:bg-slate-200 transition-all"
+                              >
+                                No
+                              </button>
+                              <button 
+                                onClick={() => handleDeletePoll(poll.id)}
+                                className="px-2 py-1 bg-rose-500 text-white rounded text-[7px] font-black uppercase tracking-widest hover:bg-rose-600 transition-all"
+                              >
+                                Yes
+                              </button>
+                            </motion.div>
+                          ) : (
+                            <button 
+                              onClick={() => setDeletingPollId(poll.id)}
+                              className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-300 hover:bg-rose-50 hover:text-rose-500 transition-all duration-300"
+                              title="Delete Poll"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          )}
+                        </AnimatePresence>
+                      </div>
                     </div>
 
                     <div className="space-y-2 mb-4">
@@ -901,11 +959,11 @@ export function Notes() {
                 </div>
 
                 {/* Content Area - Occupies Entire Screen */}
-                <div className="flex-1 w-full h-full bg-[#0a0a0b] overflow-auto custom-scrollbar flex items-center justify-center p-2">
+                <div className="flex-1 w-full h-full bg-[#0a0a0b] overflow-auto custom-scrollbar flex p-4">
                    <motion.div 
                      animate={{ scale: zoomScale }}
                      transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                     className="origin-center flex items-center justify-center"
+                     className="origin-center m-auto flex items-center justify-center min-w-max"
                    >
                       {viewingNote.fileType?.includes('image') ? (
                         <img 
